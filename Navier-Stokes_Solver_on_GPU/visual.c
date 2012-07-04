@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "datadef.h"
 #include "visual.h"
 
@@ -72,6 +73,98 @@ void OUTPUTVEC_bin(REAL **U,REAL **V,REAL **P,REAL **TEMP,
   }
 
  fclose(fp);
+}
+
+/*---------------------------------------------------------------------------*/
+/* Writing U,V,P,PSI, and ZETA into "vecfile" for visualization              */
+/*---------------------------------------------------------------------------*/
+void OUTPUTVEC_txt(REAL **U,REAL **V,REAL **P,REAL **TEMP,
+	REAL **PSI,REAL **ZETA,REAL **HEAT,int **FLAG,
+	REAL xlength,REAL ylength,int imax,int jmax,
+	char* vecfile)
+{
+	int i,j;
+	float temp;
+	FILE *fp;
+	fp = fopen(vecfile, "a");
+
+	fprintf(fp, "%f %f %d %d\n", xlength, ylength, imax, jmax);
+
+	for (j=1; j<=jmax; j+=1) {
+		for (i=1; i<=imax; i+=1) {
+			if ( (FLAG[i][j] & C_F) && (FLAG[i][j] < C_E) ) {
+				temp = (U[i][j]+U[i-1][j])/2.0;
+			} else {
+				temp = 0.0;
+			}
+			fprintf(fp, "%f ", temp);
+		}
+	}
+	fprintf(fp, "\n");
+		
+	for (j=1; j<=jmax; j+=1) {
+		for (i=1; i<=imax; i+=1) {
+			if ( (FLAG[i][j] & C_F) && (FLAG[i][j] < C_E) ) {
+				temp = (V[i][j]+V[i][j-1])/2.0;
+			} else {
+				temp = 0.0;
+			}
+			fprintf(fp, "%f ", temp);
+			}
+	}
+	fprintf(fp, "\n");
+
+	for (j=1; j<=jmax; j+=1) {
+		for (i=1; i<=imax; i+=1) {
+			if ( (FLAG[i][j] & C_F) && (FLAG[i][j] < C_E) ) {
+				temp = P[i][j];
+			} else {
+				temp = 0.0;
+			}
+			fprintf(fp, "%f ", temp);
+		}
+	}
+	fprintf(fp, "\n");
+
+	for (j=1; j<=jmax; j+=1) {
+		for (i=1; i<=imax; i+=1) {
+			if ( (FLAG[i][j] & C_F) && (FLAG[i][j] < C_E) ) {
+				temp = TEMP[i][j];
+			} else {
+				temp = -0.5;
+			}
+			temp = TEMP[i][j];
+			fprintf(fp, "%f ", temp);
+		}
+	}
+	fprintf(fp, "\n");
+
+	for (j=1; j<=jmax-1; j+=1) {
+		for (i=1; i<=imax-1; i+=1) {
+			temp = ZETA[i][j];
+			fprintf(fp, "%f ", temp);
+		}
+	}
+	fprintf(fp, "\n");
+
+	for (j=0; j<=jmax; j+=1) {
+		for (i=0; i<=imax; i+=1) {
+			temp = PSI[i][j];
+			fprintf(fp, "%f ", temp);
+		}
+	}
+	fprintf(fp, "\n");
+	
+	for (j=0; j<=jmax; j+=1) {
+		for (i=0; i<=imax; i+=1) {
+			temp = HEAT[i][j];
+			fprintf(fp, "%f ", temp);
+		}
+	}
+	fprintf(fp, "\n");
+	fprintf(fp, "\n");
+	
+	fclose(fp);
 }
 
 /*-----------------------------------------------------*/

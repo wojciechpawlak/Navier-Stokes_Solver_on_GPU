@@ -1,3 +1,7 @@
+#pragma once
+#ifndef UVP_H_
+#define UVP_H_
+
 void COMP_TEMP(REAL **U,REAL **V,REAL **TEMP,int **FLAG,
 	       int imax,int jmax,REAL delt,REAL delx,REAL dely,
 	       REAL alpha,REAL Re,REAL Pr);
@@ -19,3 +23,5 @@ void ADAP_UV(REAL **U,REAL **V,REAL **F,REAL **G,REAL **P,int **FLAG,
 void COMP_delt(REAL *delt, REAL T, int imax, int jmax, REAL delx, REAL dely,
                REAL **U, REAL **V, REAL Re, REAL Pr, REAL tau, int *write,
                REAL del_trace, REAL del_inj, REAL del_streak, REAL del_vec);
+
+#endif /* UVP_H_ */

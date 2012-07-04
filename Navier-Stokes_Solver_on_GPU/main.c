@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <CL/cl.h>
+
+#include "alloc.h"
+#include "utils.h"
 #include "datadef.h"
 #include "init.h"
 #include "boundary.h"
@@ -8,11 +13,14 @@
 #include "visual.h"
 #include "surface.h"
 
-/*----------------------------------------------------------------- */
-/*                 M A I N     P R O G R A M                        */
-/*------------------------------------------------------------------*/
+/*
+ * Main program
+ */
 int main(int argc, char *Inputfile[])
 {
+	/*
+	 * Navier-Stokes Solver Initialization
+	 */
 	char problem[30];
 	char infile[30], outfile[30];
 	REAL xlength, ylength;
@@ -38,35 +46,19 @@ int main(int argc, char *Inputfile[])
 	struct particleline *Particlelines;
 	int init_case, cycle;
 
-	//REAL xlength, ylength, delx, dely, t_end, delt, tau, t;
-	//REAL del_trace, del_inj, del_streak, del_vec;
-	//REAL pos1x, pos2x, pos1y, pos2y;
-	//int  imax, jmax, wW, wE, wN, wS, itermax, itersor=0, write, N;
-	//REAL Re, Pr, GX, GY, UI, VI, TI, beta;
-	//REAL eps,omg, gamma, res;
-	//int  p_bound;
-	//REAL **U, **V, **P, **PSI, **ZETA, **RHS, **F, **G, **TEMP, **HEAT;
-	//int  **FLAG;
-	//int  ppc, ifull=0, isurf=0, ibound=0;
-	//char problem[30];
-	//char vecfile[30], tracefile[30], streakfile[30];
-	//char infile[30], outfile[30];
-	//struct particleline *Particlelines;
-	//int init_case, cycle;
-
 	/* READ the parameters of the problem.                */
 	/* Stop if problem type or inputfile are not defined  */       
 	/*----------------------------------------------------*/
 	if (READ_PARAMETER(Inputfile[1],problem,
-		&xlength, &ylength, &imax, &jmax, &delx, &dely,
-		&t_end, &delt, &tau, 
-		&del_trace, &del_inj, &del_streak, &del_vec,
-		vecfile,tracefile,streakfile,
-		infile, outfile,
-		&N, &pos1x, &pos1y, &pos2x, &pos2y,
-		&itermax,&eps,&omg,&gamma,&p_bound,
-		&Re, &Pr, &beta, &GX, &GY, &UI, &VI, &TI,
-		&wW, &wE, &wN, &wS) != 0 ) {
+			&xlength, &ylength, &imax, &jmax, &delx, &dely,
+			&t_end, &delt, &tau, 
+			&del_trace, &del_inj, &del_streak, &del_vec,
+			vecfile,tracefile,streakfile,
+			infile, outfile,
+			&N, &pos1x, &pos1y, &pos2x, &pos2y,
+			&itermax,&eps,&omg,&gamma,&p_bound,
+			&Re, &Pr, &beta, &GX, &GY, &UI, &VI, &TI,
+			&wW, &wE, &wN, &wS) != 0 ) {
 		
 		return(1); 
 	}
@@ -90,9 +82,16 @@ int main(int argc, char *Inputfile[])
 	/*----------------------------------------*/
 	init_case = READ_bin(U, V, P, TEMP, FLAG, imax, jmax, infile); 
 
-	if (init_case > 0) return(1);	/* Error while reading "infile" */
-	if (init_case < 0) {            /* Set initial values if        */
-									/* "infile" is not specified    */
+	
+	if (init_case > 0) {
+		/* Error while reading "infile" */
+		return(1); 
+	}
+	
+
+	if (init_case < 0) {            
+		/* Set initial values if        */
+		/* "infile" is not specified    */
 		INIT_UVP(problem, U, V, P, TEMP, imax, jmax, UI, VI, TI); 
 		INIT_FLAG(problem, FLAG, imax, jmax, delx, dely, &ibound);
 	}
@@ -110,12 +109,23 @@ int main(int argc, char *Inputfile[])
 			ppc, problem, U, V);
 	}
 
+	/* Set initial values for boundary conditions				*/
+	/* and specific boundary conditions, depending on "problem" */      
+	/*----------------------------------------------------------*/
 	SETBCOND(U, V, P, TEMP, FLAG, imax, jmax, wW, wE, wN, wS);
 	SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
 
 
-	/* t i m e    l o o p */
-	/*--------------------*/
+
+	/*
+	 * OpenCL Initialization
+	 */
+
+	//cl_int status;  // use as return value for most OpenCL functions
+
+	/*
+	 * Main time loop
+	 */
 	for (t=0.0, cycle=0; t < t_end; t+=delt, cycle++) {
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
@@ -179,11 +189,11 @@ int main(int argc, char *Inputfile[])
 		if ((write & 8) && strcmp(vecfile, "none")) {     
 			COMPPSIZETA(U, V, PSI, ZETA, FLAG, imax, jmax, delx, dely);
 			COMP_HEAT(U, V, TEMP, HEAT, FLAG, Re, Pr, imax, jmax, delx, dely);
-			OUTPUTVEC_bin(U, V, P, TEMP, PSI, ZETA, HEAT, FLAG, xlength, ylength,
+			OUTPUTVEC_txt(U, V, P, TEMP, PSI, ZETA, HEAT, FLAG, xlength, ylength,
 				imax, jmax, vecfile);
 		}
 		if ((write & 8) && strcmp(outfile, "none")) {
-			WRITE_bin(U, V, P, TEMP, FLAG, imax, jmax, outfile);
+			WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 		}
 		if (strcmp(tracefile, "none")) {
 			PARTICLE_TRACING(tracefile, t, imax, jmax, delx, dely, delt,
@@ -194,17 +204,20 @@ int main(int argc, char *Inputfile[])
 				U, V, FLAG, N, Particlelines);
 		}
 	}           
-	/* e n d   o f   t i m e   l o o p */
+	
+	/*
+	 * End of main time loop
+	 */
 
 	if (strcmp(vecfile,"none"))
 	{     
 		COMPPSIZETA(U, V, PSI, ZETA, FLAG, imax, jmax, delx, dely);
 		COMP_HEAT(U, V, TEMP, HEAT, FLAG, Re, Pr, imax, jmax, delx, dely);
-		OUTPUTVEC_bin(U, V, P, TEMP, PSI, ZETA, HEAT, FLAG, xlength, ylength,
+		OUTPUTVEC_txt(U, V, P, TEMP, PSI, ZETA, HEAT, FLAG, xlength, ylength,
 			imax, jmax, vecfile);
 	}
 	if (strcmp(outfile,"none")) {
-		WRITE_bin(U, V, P, TEMP, FLAG, imax, jmax, outfile);
+		WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 	}
 
 	/* free memory */

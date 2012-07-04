@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Navier-Stokes_Solver_on_GPU", "Navier-Stokes_Solver_on_GPU\Navier-Stokes_Solver_on_GPU.vcxproj", "{DC45E163-7367-4F87-B119-3A50546B8E32}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Navier-Stokes_Solver_on_GPU_Test", "Navier-Stokes_Solver_on_GPU_Test\Navier-Stokes_Solver_on_GPU_Test.vcxproj", "{69314319-85FA-4D36-B362-A6F4F4DF3C7B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -19,6 +21,14 @@ Global
 		{DC45E163-7367-4F87-B119-3A50546B8E32}.Release|Win32.Build.0 = Release|Win32
 		{DC45E163-7367-4F87-B119-3A50546B8E32}.Release|x64.ActiveCfg = Release|x64
 		{DC45E163-7367-4F87-B119-3A50546B8E32}.Release|x64.Build.0 = Release|x64
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Debug|Win32.Build.0 = Debug|Win32
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Debug|x64.ActiveCfg = Debug|x64
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Debug|x64.Build.0 = Debug|x64
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Release|Win32.ActiveCfg = Release|Win32
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Release|Win32.Build.0 = Release|Win32
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Release|x64.ActiveCfg = Release|x64
+		{69314319-85FA-4D36-B362-A6F4F4DF3C7B}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

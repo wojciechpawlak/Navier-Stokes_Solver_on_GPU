@@ -1,6 +1,14 @@
+#pragma once
+#ifndef VISUAL_H_
+#define VISUAL_H_
+
 void OUTPUTVEC_bin(REAL **U,REAL **V,REAL **P,REAL **TEMP,
 		   REAL **PSI,REAL **ZETA,REAL **HEAT,int **FLAG,
                    REAL,REAL,int im,int jm,char* outputfile);
+
+void OUTPUTVEC_txt(REAL **U,REAL **V,REAL **P,REAL **TEMP,
+	REAL **PSI,REAL **ZETA,REAL **HEAT,int **FLAG,
+	REAL,REAL,int im,int jm,char* outputfile);
 
 void COMPPSIZETA(REAL **U,REAL **V,REAL **PSI,REAL **ZETA,int **FLAG,
                 int imax,int jmax,REAL delx,REAL dely);
@@ -36,3 +44,5 @@ struct particle *PARTALLOC(REAL x, REAL y);
 
 struct particleline *SET_PARTICLES(int N,REAL pos1x,REAL pos1y,
 					 REAL pos2x,REAL pos2y);
+
+#endif /* VISUAL_H_ */

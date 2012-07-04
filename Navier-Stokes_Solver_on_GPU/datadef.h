@@ -1,3 +1,7 @@
+#pragma once
+#ifndef DATADEF_H_
+#define DATADEF_H_
+
 #define REAL	double
 #define INREAL	"%lf"
 #define OUTREAL %.3e
@@ -52,3 +56,5 @@ struct particle *partalloc(REAL x, REAL y);
 #define eps_W	!(FLAG[i-1][j] < C_F)
 #define eps_N	!(FLAG[i][j+1] < C_F)
 #define eps_S	!(FLAG[i][j-1] < C_F)
+
+#endif /* DATADEF_H_ */
