@@ -19,14 +19,15 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="alloc.c" />
-    <ClCompile Include="boundary.c" />
-    <ClCompile Include="init.c" />
-    <ClCompile Include="main.c" />
-    <ClCompile Include="surface.c" />
-    <ClCompile Include="utils.c" />
-    <ClCompile Include="uvp.c" />
-    <ClCompile Include="visual.c" />
+    <ClCompile Include="alloc.cpp" />
+    <ClCompile Include="boundary.cpp" />
+    <ClCompile Include="init.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="surface.cpp" />
+    <ClCompile Include="utils.cpp" />
+    <ClCompile Include="utils_opencl.cpp" />
+    <ClCompile Include="uvp.cpp" />
+    <ClCompile Include="visual.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="alloc.h" />
@@ -35,10 +36,12 @@
     <ClInclude Include="init.h" />
     <ClInclude Include="surface.h" />
     <ClInclude Include="utils.h" />
+    <ClInclude Include="utils_opencl.h" />
     <ClInclude Include="uvp.h" />
     <ClInclude Include="visual.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="kernels.cl" />
     <None Include="Inputfiles\backstep.par" />
     <None Include="Inputfiles\convect.par" />
     <None Include="Inputfiles\dam.par" />

@@ -175,3 +175,116 @@ char* READ_kernelSource(const char *sourceFilename) {
 
 	return source;
 }
+
+void copy_array_real(REAL** src, REAL** dst, int m, int n)
+{
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			dst[r][s] = src[r][s];
+		}
+	}  
+}
+
+void copy_array_real_2d_to_1d(REAL** src, REAL* dst, int m, int n)
+{
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			dst[r*n+s] = src[r][s];
+		}
+	}  
+}
+
+void copy_array_int(int** src, int** dst, int m, int n)
+{
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			dst[r][s] = src[r][s];
+		}
+	}
+}
+
+void copy_array_int_2d_to_1d(int** src, int* dst, int m, int n)
+{
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			dst[r*n+s] = src[r][s];
+		}
+	}
+}
+
+void print_array(REAL** A, int m, int n)
+{
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			printf("%6.2f\t", A[r][s]);
+		}
+		printf("\n");
+	}  
+}
+
+void print_array_to_file(REAL** A, int m, int n, char* filename)
+{
+	FILE *fp;
+	
+	fp = fopen(filename, "w");
+
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			fprintf(fp, "%6.2f\t", A[r][s]);
+		}
+		fprintf(fp, "\n");
+	}
+
+	fclose(fp);
+}
+
+void print_1darray_to_file(REAL* A, int m, int n, char* filename)
+{
+	FILE *fp;
+
+	fp = fopen(filename, "w");
+
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			fprintf(fp, "%6.2f\t", A[r*n+s]);
+		}
+		fprintf(fp, "\n");
+	}
+
+	fclose(fp);
+}
+
+void print_array_int_to_file(int** A, int m, int n, char* filename)
+{
+	FILE *fp;
+
+	fp = fopen(filename, "w");
+
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			fprintf(fp, "%d\t", A[r][s]);
+		}
+		fprintf(fp, "\n");
+	}
+
+	fclose(fp);
+}
+
+bool compare_array(REAL** A1, REAL* A2, int m, int n)
+{
+	REAL sum1, sum2;
+	sum1 = 0;
+	sum2 = 0;
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			sum1 += A1[r][s];
+			sum2 += A2[r*n+s];
+		}
+	}  
+
+	printf("%10.10f\t%10.10f\n", sum1, sum2);
+	if (sum1 == sum2)
+		return true;
+	else
+		return false;
+}

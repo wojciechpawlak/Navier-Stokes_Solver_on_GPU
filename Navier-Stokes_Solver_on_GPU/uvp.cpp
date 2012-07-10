@@ -122,12 +122,12 @@ void COMP_FG(	REAL **U, REAL **V, REAL **TEMP, REAL **F, REAL **G, int **FLAG,
 	for (j=1; j<=jmax; j++)
 	{
 		F[0][j]    = U[0][j];
-		F[imax][j] = U[imax][j];
+		//F[imax][j] = U[imax][j]; //TODO is this never run?
 	}
 	for (i=1; i<=imax; i++)
 	{
 		G[i][0]    = V[i][0];
-		G[i][jmax] = V[i][jmax];
+		//G[i][jmax] = V[i][jmax];
 	}
 }
 

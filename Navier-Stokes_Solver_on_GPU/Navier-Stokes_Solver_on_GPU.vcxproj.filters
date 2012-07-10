@@ -15,28 +15,31 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="boundary.c">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="init.c">
+    <ClCompile Include="alloc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="surface.c">
+    <ClCompile Include="boundary.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="uvp.c">
+    <ClCompile Include="init.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="visual.c">
+    <ClCompile Include="surface.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main.c">
+    <ClCompile Include="utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utils.c">
+    <ClCompile Include="uvp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="alloc.c">
+    <ClCompile Include="visual.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utils_opencl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -63,6 +66,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="alloc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utils_opencl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -97,5 +103,6 @@
     <None Include="Inputfiles\wave.par">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="kernels.cl" />
   </ItemGroup>
 </Project>

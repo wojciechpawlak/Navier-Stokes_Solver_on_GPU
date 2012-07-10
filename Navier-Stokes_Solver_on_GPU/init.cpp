@@ -229,7 +229,7 @@ void INIT_UVP(char *problem,
 }
 
 /*
- * Initializes the integer array FLAG dependening on the problem type
+ * Initializes the integer array FLAG depending on the problem type
  */
 void INIT_FLAG(char *problem,int **FLAG,int imax,int jmax,REAL delx,REAL dely,
 	int *ibound)
