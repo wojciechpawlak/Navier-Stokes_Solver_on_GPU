@@ -142,7 +142,7 @@ void COMP_RHS(REAL **F, REAL **G, REAL **RHS, int **FLAG, int imax, int jmax,
 
 	for (i=1; i<=imax; i++) {
 		for (j=1; j<=jmax; j++) {
-			if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)) {
+			if ((FLAG[i][j] & C_F) && (FLAG[i][j] < C_O)) {
 				/* only for fluid and non-surface cells */
 				RHS[i][j] = ((F[i][j]-F[i-1][j])/delx+(G[i][j]-G[i][j-1])/dely)/delt;
 			}

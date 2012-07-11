@@ -16,16 +16,13 @@ void COMP_TEMP_kernel(__global REAL *U,
 	REAL Re,
 	REAL Pr)
 {
-	REAL LAPLT, DUTDX, DVTDY/*, indelx2, indely2*/;
+	REAL LAPLT, DUTDX, DVTDY;
 
 	imax = imax + 2;
 	jmax = jmax + 2;
 
 	int i = get_global_id(0);
 	int j = get_global_id(1);
-
-	//indelx2 = 1./delx/delx;
-	//indely2 = 1./dely/dely;
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 		if( (FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < C_E) ) {
@@ -76,7 +73,7 @@ void COMP_FG_kernel(__global REAL *U,
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 
-		/* only if both adjacent cells are fluid cells */
+		// only if both adjacent cells are fluid cells
 		if ( ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < C_E)) &&
 			((FLAG[(i+1)*jmax + j] & C_F) && (FLAG[(i+1)*jmax + j] < C_E)) ) {
 				DU2DX = ((U[i*jmax + j]+U[(i+1)*jmax + j])*(U[i*jmax + j]+U[(i+1)*jmax + j])+
@@ -133,5 +130,30 @@ void COMP_FG_kernel(__global REAL *U,
 
 	//} else if ((j == jmax-1) && (i > 0 && i < imax-1)) {
 	//	G[i*jmax + (jmax-1)] = V[i*jmax + (jmax-1)];
+	}
+}
+
+__kernel
+void COMP_RHS_kernel(__global REAL *F,
+	__global REAL *G,
+	__global REAL *RHS,
+	__global int *FLAG,
+	int imax,
+	int jmax,
+	REAL delt,
+	REAL delx,
+	REAL dely)
+{
+	imax = imax + 2;
+	jmax = jmax + 2;
+	
+	int i = get_global_id(0);
+	int j = get_global_id(1);
+
+	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+		if( (FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < C_O) ) {
+			// only for fluid and non-surface cells
+			RHS[i*jmax + j] = ((F[i*jmax + j]-F[(i-1)*jmax + j])/delx+(G[i*jmax + j]-G[i*jmax + j-1])/dely)/delt;
+		}
 	}
 }
