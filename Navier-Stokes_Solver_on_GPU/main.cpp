@@ -284,6 +284,7 @@ int main(int argc, char *argv[])
 	cl_mem F_d;
 	cl_mem G_d;
 	cl_mem TEMP_d;
+	cl_mem TEMP_new_d;
 	cl_mem FLAG_d;
 
 	// Allocate memory for data on device
@@ -328,6 +329,14 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
+	// Create a buffer object (TEMP_new_d)
+	TEMP_new_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+		datasize, NULL, &status);
+	if (status != CL_SUCCESS || TEMP_new_d == NULL) {
+		printf("clCreateBuffer failed\n");
+		exit(-1);
+	}
+
 	// Create a buffer object (FLAG_d)
 	FLAG_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
 		datasize_int, NULL, &status);
@@ -336,7 +345,7 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	REAL *U_h, *V_h, *F_h, *G_h, *TEMP_h;
+	REAL *U_h, *V_h, *F_h, *G_h, *TEMP_h, *TEMP_new_h;
 	int *FLAG_h;
 
 	REAL **P_h, **PSI_h, **ZETA_h, **RHS_h, **HEAT_h;
@@ -346,6 +355,7 @@ int main(int argc, char *argv[])
 	F_h		= (REAL *) malloc(datasize);
 	G_h		= (REAL *) malloc(datasize);
 	TEMP_h	= (REAL *) malloc(datasize);
+	TEMP_new_h	= (REAL *) malloc(datasize);
 
 	P_h		= RMATRIX(0, imax+1, 0, jmax+1);
 	PSI_h	= RMATRIX(0, imax,	 0, jmax);
@@ -441,16 +451,67 @@ int main(int argc, char *argv[])
 	// STEP 8: Create the kernel
 	//----------------------------------------------------- 
 
-	cl_kernel kernel = NULL;
+	cl_kernel TEMP_kernel = NULL;
+	cl_kernel FG_kernel = NULL;
 
-	// Create a kernel
-	kernel = clCreateKernel(program, "COMP_FG_kernel", &status);
+	// Create a kernel for computation of temperature
+	TEMP_kernel = clCreateKernel(program, "COMP_TEMP_kernel", &status);
 	if (status != CL_SUCCESS) {
 		printf("clCreateKernel failed\n");
 		exit(-1);
 	}
 
+	// Create a kernel for computation of velocity vectors F, G
+	FG_kernel = clCreateKernel(program, "COMP_FG_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed\n");
+		exit(-1);
+	}
 
+	//-----------------------------------------------------
+	// STEP 9: Set arguments for kernels
+	//----------------------------------------------------- 
+
+	// Associate the input and output buffers with the TEMP_kernel 
+	status = clSetKernelArg(TEMP_kernel, 0, sizeof(cl_mem), &U_d);
+	status |= clSetKernelArg(TEMP_kernel, 1, sizeof(cl_mem), &V_d);
+	status |= clSetKernelArg(TEMP_kernel, 2, sizeof(cl_mem), &TEMP_d);
+	status |= clSetKernelArg(TEMP_kernel, 3, sizeof(cl_mem), &TEMP_new_d);
+	status |= clSetKernelArg(TEMP_kernel, 4, sizeof(cl_mem), &FLAG_d);
+	status |= clSetKernelArg(TEMP_kernel, 5, sizeof(int), &imax);
+	status |= clSetKernelArg(TEMP_kernel, 6, sizeof(int), &jmax);
+
+	status |= clSetKernelArg(TEMP_kernel, 8, sizeof(REAL), &delx);
+	status |= clSetKernelArg(TEMP_kernel, 9, sizeof(REAL), &dely);
+	status |= clSetKernelArg(TEMP_kernel, 10, sizeof(REAL), &gamma);
+	status |= clSetKernelArg(TEMP_kernel, 11, sizeof(REAL), &Re);
+	status |= clSetKernelArg(TEMP_kernel, 12, sizeof(REAL), &Pr);
+	if (status != CL_SUCCESS) {
+		printf("clSetKernelArg failed\n");
+		exit(-1);
+	}
+
+	// Associate the input and output buffers with the FG_kernel 
+	status = clSetKernelArg(FG_kernel, 0, sizeof(cl_mem), &U_d);
+	status |= clSetKernelArg(FG_kernel, 1, sizeof(cl_mem), &V_d);
+
+	status |= clSetKernelArg(FG_kernel, 3, sizeof(cl_mem), &F_d);
+	status |= clSetKernelArg(FG_kernel, 4, sizeof(cl_mem), &G_d);
+	status |= clSetKernelArg(FG_kernel, 5, sizeof(cl_mem), &FLAG_d);
+	status |= clSetKernelArg(FG_kernel, 6, sizeof(int), &imax);
+	status |= clSetKernelArg(FG_kernel, 7, sizeof(int), &jmax);
+
+	status |= clSetKernelArg(FG_kernel, 9, sizeof(REAL), &delx);
+	status |= clSetKernelArg(FG_kernel, 10, sizeof(REAL), &dely);
+	status |= clSetKernelArg(FG_kernel, 11, sizeof(REAL), &GX);
+	status |= clSetKernelArg(FG_kernel, 12, sizeof(REAL), &GY);
+	status |= clSetKernelArg(FG_kernel, 13, sizeof(REAL), &gamma);
+	status |= clSetKernelArg(FG_kernel, 14, sizeof(REAL), &Re);
+	status |= clSetKernelArg(FG_kernel, 15, sizeof(REAL), &beta);
+	if (status != CL_SUCCESS) {
+		printf("clSetKernelArg failed\n");
+		exit(-1);
+	}
 
 	//-----------------------------------------------------
 	// STEP 10: Configure the work-item structure
@@ -477,55 +538,29 @@ int main(int argc, char *argv[])
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
 
+		//set delt argument for kernels
+
+		status = clSetKernelArg(TEMP_kernel, 7, sizeof(REAL), &delt);
+		status |= clSetKernelArg(FG_kernel, 8, sizeof(REAL), &delt);
+
+		if (status != CL_SUCCESS) {
+			printf("clSetKernelArg failed\n");
+			exit(-1);
+		}
+
 		/* Determine fluid cells for free boundary problems */
 		/* and set boundary values at free surface          */
 		/*--------------------------------------------------*/
 		if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
 			!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
+			//TODO change FLAG
 			MARK_CELLS(FLAG, imax, jmax, delx, dely, &ifull, &isurf,
 				N, Particlelines);
+			//TODO change U,V,P
 			SET_UVP_SURFACE(U, V, P, FLAG, GX, GY,
 				imax, jmax, Re, delx, dely, delt);
 		} else {
 			ifull = imax*jmax-ibound;
-		}
-
-		/* Compute new temperature */
-		/*-------------------------*/
-		COMP_TEMP(U, V, TEMP, FLAG, imax, jmax,
-			delt, delx, dely, gamma, Re, Pr);
-
-		/* Compute tentative velocity field (F, G) */
-		/*----------------------------------------*/
-
-		copy_array_real_2d_to_1d(TEMP,	TEMP_h, imax+2, jmax+2);
-		copy_array_int_2d_to_1d(FLAG,	FLAG_h, imax+2, jmax+2);
-
-		//-----------------------------------------------------
-		// STEP 9: Set the kernel arguments
-		//----------------------------------------------------- 
-
-		// Associate the input and output buffers with the kernel 
-		status  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &U_d);
-		status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &V_d);
-		status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &TEMP_d);
-		status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &F_d);
-		status |= clSetKernelArg(kernel, 4, sizeof(cl_mem), &G_d);
-		status |= clSetKernelArg(kernel, 5, sizeof(cl_mem), &FLAG_d);
-		status |= clSetKernelArg(kernel, 6, sizeof(int), &imax);
-		status |= clSetKernelArg(kernel, 7, sizeof(int), &jmax);
-		status |= clSetKernelArg(kernel, 8, sizeof(REAL), &delt);
-		status |= clSetKernelArg(kernel, 9, sizeof(REAL), &delx);
-		status |= clSetKernelArg(kernel, 10, sizeof(REAL), &dely);
-		status |= clSetKernelArg(kernel, 11, sizeof(REAL), &GX);
-		status |= clSetKernelArg(kernel, 12, sizeof(REAL), &GY);
-		status |= clSetKernelArg(kernel, 13, sizeof(REAL), &gamma);
-		status |= clSetKernelArg(kernel, 14, sizeof(REAL), &Re);
-		status |= clSetKernelArg(kernel, 15, sizeof(REAL), &beta);
-
-		if (status != CL_SUCCESS) {
-			printf("clSetKernelArg failed\n");
-			exit(-1);
 		}
 
 		//-----------------------------------------------------
@@ -547,6 +582,9 @@ int main(int argc, char *argv[])
 		status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
 			datasize, TEMP_h, 0, NULL, NULL);
 
+		status = clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
+			datasize, TEMP_new_h, 0, NULL, NULL);
+
 		status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_FALSE, 0, 
 			datasize_int, FLAG_h, 0, NULL, NULL);
 
@@ -555,17 +593,55 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 
+		/* Compute new temperature */
+		/*-------------------------*/
+		cl_event event;
+
+		// Execute the kernel
+		status = clEnqueueNDRangeKernel(cmdQueue, TEMP_kernel, 2, NULL, globalWorkSize, 
+			localWorkSize, 0, NULL, &event);
+		if(status != CL_SUCCESS) {
+			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		clWaitForEvents(1, &event);
+
+		// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
+		status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0,
+			datasize, TEMP_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueReadBuffer failed\n");
+			exit(-1);
+		}
+
+
+		/* Compute tentative velocity field (F, G) */
+		/*----------------------------------------*/
+
 		//-----------------------------------------------------
 		// STEP 11: Enqueue the kernel for execution
 		//-----------------------------------------------------
 
-		cl_event event;
+		status = clSetKernelArg(FG_kernel, 2, sizeof(cl_mem), &TEMP_d);
+
+		if (status != CL_SUCCESS) {
+			printf("clSetKernelArg failed\n");
+			exit(-1);
+		}
+
+		status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
+			datasize, TEMP_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed\n");
+			exit(-1);
+		}
 
 		// Execute the kernel
-		status = clEnqueueNDRangeKernel(cmdQueue, kernel, 2, NULL, globalWorkSize, 
+		status = clEnqueueNDRangeKernel(cmdQueue, FG_kernel, 2, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, &event);
 		if(status != CL_SUCCESS) {
-			printf("clEnqueueNDRangeKernel failed\n");
+			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
 
@@ -833,7 +909,8 @@ int main(int argc, char *argv[])
 	#ifdef GPU
 
 	// Free OpenCL resources
-	clReleaseKernel(kernel);
+	clReleaseKernel(FG_kernel);
+	clReleaseKernel(TEMP_kernel);
 	clReleaseProgram(program);
 	clReleaseCommandQueue(cmdQueue);
 	clReleaseMemObject(U_d);
@@ -850,6 +927,7 @@ int main(int argc, char *argv[])
 	free(F_h);
 	free(G_h);
 	free(TEMP_h);
+	free(TEMP_new_h);
 	free(FLAG_h);
 
 	//FREE_RMATRIX(U_h,		0, imax+1,	0, jmax+1);
