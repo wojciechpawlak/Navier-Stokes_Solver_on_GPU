@@ -349,7 +349,7 @@ int main(int argc, char *argv[])
 	}
 
 	int *FLAG_h;
-	REAL *U_h, *V_h, *TEMP_h, *TEMP_new_h, *F_h, *G_h,  *RHS_h;
+	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h,  *RHS_h;
 
 	REAL **P_h, **PSI_h, **ZETA_h, **HEAT_h;
 
@@ -358,7 +358,6 @@ int main(int argc, char *argv[])
 	U_h		= (REAL *) malloc(datasize);
 	V_h		= (REAL *) malloc(datasize);
 	TEMP_h	= (REAL *) malloc(datasize);
-	TEMP_new_h	= (REAL *) malloc(datasize);
 	F_h		= (REAL *) malloc(datasize);
 	G_h		= (REAL *) malloc(datasize);
 	RHS_h	= (REAL *) malloc(datasize);
@@ -373,7 +372,6 @@ int main(int argc, char *argv[])
 	copy_array_real_2d_to_1d(U,		U_h,	imax+2, jmax+2);
 	copy_array_real_2d_to_1d(V,		V_h,	imax+2, jmax+2);
 	copy_array_real_2d_to_1d(TEMP,	TEMP_h, imax+2, jmax+2);
-	copy_array_real_2d_to_1d(TEMP,	TEMP_new_h, imax+2, jmax+2);
 
 	copy_array_real(P,		P_h,	imax+2, jmax+2);
 	copy_array_real(PSI,	PSI_h,	imax+1,	jmax+1);
@@ -563,7 +561,7 @@ int main(int argc, char *argv[])
 			datasize, TEMP_h, 0, NULL, NULL);
 
 		status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
-			datasize, TEMP_new_h, 0, NULL, NULL);
+			datasize, TEMP_h, 0, NULL, NULL);
 
 		status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_FALSE, 0, 
 			datasize, F_h, 0, NULL, NULL);
@@ -594,12 +592,12 @@ int main(int argc, char *argv[])
 		clWaitForEvents(1, &event);
 
 		// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
-		status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0,
-			datasize, TEMP_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueReadBuffer failed\n");
-			exit(-1);
-		}
+		//status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0,
+		//	datasize, TEMP_h, 0, NULL, NULL);
+		//if (status != CL_SUCCESS) {
+		//	printf("clEnqueueReadBuffer failed\n");
+		//	exit(-1);
+		//}
 
 		/* Compute tentative velocity field (F, G) */
 		/*----------------------------------------*/
@@ -610,7 +608,7 @@ int main(int argc, char *argv[])
 		// Associate the input and output buffers with the FG_kernel 
 		status = clSetKernelArg(FG_kernel, 0, sizeof(cl_mem), &U_d);
 		status |= clSetKernelArg(FG_kernel, 1, sizeof(cl_mem), &V_d);
-		status |= clSetKernelArg(FG_kernel, 2, sizeof(cl_mem), &TEMP_d);
+		status |= clSetKernelArg(FG_kernel, 2, sizeof(cl_mem), &TEMP_new_d);
 		status |= clSetKernelArg(FG_kernel, 3, sizeof(cl_mem), &F_d);
 		status |= clSetKernelArg(FG_kernel, 4, sizeof(cl_mem), &G_d);
 		status |= clSetKernelArg(FG_kernel, 5, sizeof(cl_mem), &FLAG_d);
@@ -629,12 +627,12 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 		
-		status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed\n");
-			exit(-1);
-		}
+		//status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
+		//	datasize, TEMP_h, 0, NULL, NULL);
+		//if (status != CL_SUCCESS) {
+		//	printf("clEnqueueWriteBuffer failed\n");
+		//	exit(-1);
+		//}
 
 		// Execute the kernel
 		status = clEnqueueNDRangeKernel(cmdQueue, FG_kernel, 2, NULL, globalWorkSize, 
@@ -651,17 +649,17 @@ int main(int argc, char *argv[])
 		//----------------------------------------------------- 
 
 		// Read the OpenCL output buffer (F_d) to the host output array (F_h)
-		status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0,
-			datasize, F_h, 0, NULL, NULL);
+		//status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0,
+		//	datasize, F_h, 0, NULL, NULL);
 
 		// Read the OpenCL output buffer (G_d) to the host output array (G_h)
-		status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0,
-			datasize, G_h, 0, NULL, NULL);
+		//status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0,
+		//	datasize, G_h, 0, NULL, NULL);
 
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueReadBuffer failed\n");
-			exit(-1);
-		}
+		//if (status != CL_SUCCESS) {
+		//	printf("clEnqueueReadBuffer failed\n");
+		//	exit(-1);
+		//}
 
 		/* Compute right hand side for pressure equation */
 		/*-----------------------------------------------*/
@@ -678,15 +676,6 @@ int main(int argc, char *argv[])
 			printf("clSetKernelArg failed\n");
 			exit(-1);
 		}
-
-		status = clEnqueueWriteBuffer(cmdQueue, F_d, CL_FALSE, 0, 
-			datasize, F_h, 0, NULL, NULL);
-		status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_FALSE, 0, 
-			datasize, G_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed\n");
-			exit(-1);
-		}
 		
 		// Execute the kernel
 		status = clEnqueueNDRangeKernel(cmdQueue, RHS_kernel, 2, NULL, globalWorkSize, 
@@ -699,7 +688,13 @@ int main(int argc, char *argv[])
 		clWaitForEvents(1, &event);
 
 		// Read the OpenCL output buffer (F_d) to the host output array (F_h)
-		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
+		status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
+			datasize, TEMP_h, 0, NULL, NULL);
+		status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
+			datasize, F_h, 0, NULL, NULL);
+		status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
+			datasize, G_h, 0, NULL, NULL);
+		status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
 			datasize, RHS_h, 0, NULL, NULL);
 		if (status != CL_SUCCESS) {
 			printf("clEnqueueReadBuffer failed\n");
@@ -965,42 +960,34 @@ int main(int argc, char *argv[])
 	#ifdef GPU
 
 	// Free OpenCL resources
-	clReleaseKernel(FG_kernel);
-	clReleaseKernel(TEMP_kernel);
-	clReleaseProgram(program);
-	clReleaseCommandQueue(cmdQueue);
+	clReleaseMemObject(FLAG_d);
 	clReleaseMemObject(U_d);
 	clReleaseMemObject(V_d);
-	clReleaseMemObject(FLAG_d);
 	clReleaseMemObject(TEMP_d);
 	clReleaseMemObject(TEMP_new_d);
 	clReleaseMemObject(F_d);
 	clReleaseMemObject(G_d);	
+
+	clReleaseKernel(FG_kernel);
+	clReleaseKernel(TEMP_kernel);
+	clReleaseProgram(program);
+	clReleaseCommandQueue(cmdQueue);
 	clReleaseContext(context);
 
+
 	// Free host resources
-
 	free(FLAG_h);
-
 	free(U_h);
 	free(V_h);
 	free(TEMP_h);
-	free(TEMP_new_h);
 	free(F_h);
 	free(G_h);
 	free(RHS_h);
 
-	//FREE_RMATRIX(U_h,		0, imax+1,	0, jmax+1);
-	//FREE_RMATRIX(V_h,		0, imax+1,	0, jmax+1);
-	//FREE_RMATRIX(F_h,		0, imax+1,	0, jmax+1);
-	//FREE_RMATRIX(G_h,		0, imax+1,	0, jmax+1);
 	FREE_RMATRIX(P_h,		0, imax+1,	0, jmax+1);
-	//FREE_RMATRIX(TEMP_h,	0, imax+1,	0, jmax+1);
 	FREE_RMATRIX(PSI_h,		0, imax,	0, jmax);
 	FREE_RMATRIX(ZETA_h,	1, imax-1,	1, jmax-1);
 	FREE_RMATRIX(HEAT_h,	0, imax,	0, jmax);
-	//FREE_RMATRIX(RHS_h,		0, imax+1,	0, jmax+1);
-	//FREE_IMATRIX(FLAG_h,	0, imax+1,	0, jmax+1);
 
 	free(platforms);
 	free(devices);
