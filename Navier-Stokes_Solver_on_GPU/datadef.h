@@ -57,4 +57,16 @@ struct particle *partalloc(REAL x, REAL y);
 #define eps_N	!(FLAG[i][j+1] < C_F)
 #define eps_S	!(FLAG[i][j-1] < C_F)
 
+// host version
+#define eps_E_h	!(FLAG_h[(i+1)*jmax+j] < C_F)
+#define eps_W_h	!(FLAG_h[(i-1)*jmax+j] < C_F)
+#define eps_N_h	!(FLAG_h[i*jmax+(j+1)] < C_F)
+#define eps_S_h	!(FLAG_h[i*jmax+(j-1)] < C_F)
+
+// device version
+#define eps_E_d	!(FLAG[(i+1)*jmax+j] < C_F)
+#define eps_W_d	!(FLAG[(i-1)*jmax+j] < C_F)
+#define eps_N_d	!(FLAG[i*jmax+(j+1)] < C_F)
+#define eps_S_d	!(FLAG[i*jmax+(j-1)] < C_F)
+
 #endif /* DATADEF_H_ */

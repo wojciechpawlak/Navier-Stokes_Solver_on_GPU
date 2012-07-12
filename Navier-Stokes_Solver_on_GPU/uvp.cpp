@@ -5,6 +5,7 @@
 #include "datadef.h"
 #include "init.h"
 #include "uvp.h"
+#include "utils.h"
 
 
 /*---------------------------------------------------------------*/
@@ -142,7 +143,7 @@ void COMP_RHS(REAL **F, REAL **G, REAL **RHS, int **FLAG, int imax, int jmax,
 
 	for (i=1; i<=imax; i++) {
 		for (j=1; j<=jmax; j++) {
-			if ((FLAG[i][j] & C_F) && (FLAG[i][j] < C_O)) {
+			if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)) {
 				/* only for fluid and non-surface cells */
 				RHS[i][j] = ((F[i][j]-F[i-1][j])/delx+(G[i][j]-G[i][j-1])/dely)/delt;
 			}
@@ -172,28 +173,29 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 			if (FLAG[i][j] & C_F)
 				p0 += P[i][j]*P[i][j];
 
+	print_array_to_file(P, imax+2, jmax+2, "P_init.txt");
+
 	p0 = sqrt(p0/ifull);
 	if (p0 < 0.0001)
 		p0 = 1.0;
 
 	/* SOR-iteration */
 	/*---------------*/
-	for (iter=1;iter<=itermax;iter++)
-	{
-		if (p_bound == 1)
-			/* modify the equation at the boundary */
-			/*-------------------------------------*/
-		{
+	for (iter=1;iter<=itermax;iter++) {
+		/* modify the equation at the boundary */
+		/*-------------------------------------*/
+		if (p_bound == 1) {
 			/* relaxation for fluid cells */
 			/*----------------------------*/
-			for (i=1;i<=imax;i+=1)
-				for (j=1;j<=jmax;j+=1)   
+			for (i=1;i<=imax;i+=1) {
+				for (j=1;j<=jmax;j+=1) {   
 					/* five point star for interior fluid cells */
-					if (FLAG[i][j] == 0x001f) 
+					if (FLAG[i][j] == 0x001f) {
 						P[i][j] = (1.-omg)*P[i][j] - 
-						beta_2*((P[i+1][j]+P[i-1][j])*rdx2 +
-						(P[i][j+1]+P[i][j-1])*rdy2 - RHS[i][j]);
-			/* modified star near boundary */
+							beta_2*((P[i+1][j]+P[i-1][j])*rdx2 +
+							(P[i][j+1]+P[i][j-1])*rdy2 - RHS[i][j]);
+					}
+					/* modified star near boundary */
 					else if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)){ 
 						beta_mod = -omg/((eps_E+eps_W)*rdx2+(eps_N+eps_S)*rdy2);
 						P[i][j] = (1.-omg)*P[i][j] -
@@ -201,32 +203,35 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 							(eps_N*P[i][j+1]+eps_S*P[i][j-1])*rdy2 -
 							RHS[i][j]);
 					}
-					/* computation of residual */
-					/*-------------------------*/
-					*res = 0.0;
-					for (i=1;i<=imax;i++)
-						for (j=1;j<=jmax;j++)
-							if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100))   
-								/* only fluid cells */
-								/*------------------*/
-							{
-								add =  (eps_E*(P[i+1][j]-P[i][j]) - 
-									eps_W*(P[i][j]-P[i-1][j])) * rdx2  +
-									(eps_N*(P[i][j+1]-P[i][j]) -
-									eps_S*(P[i][j]-P[i][j-1])) * rdy2  -  RHS[i][j];
-								*res += add*add;
-							}
+				}
+			}
 
-							*res = sqrt((*res)/ifull)/p0;
-							/* convergence? */
-							/*--------------*/
+			/* computation of residual */
+			/*-------------------------*/
+			*res = 0.0;
+			for (i=1;i<=imax;i++) {
+				for (j=1;j<=jmax;j++) {
+					/* only fluid cells */
+					if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)) {
+						add = (	eps_E*(P[i+1][j]-P[i][j]) - 
+								eps_W*(P[i][j]-P[i-1][j])) * rdx2
+								+ (	eps_N*(P[i][j+1]-P[i][j]) -
+									eps_S*(P[i][j]-P[i][j-1])) * rdy2
+								- RHS[i][j];
 
-							if (*res<eps)
-								return iter;
-		}
+						*res += add*add;
+					}
+				}
+			}
 
-		else if (p_bound == 2)
-		{
+			*res = sqrt((*res)/ifull)/p0;
+			
+			/* convergence? */
+			if (*res<eps) {
+				return iter;
+			}
+		
+		} else if (p_bound == 2) {
 			/* copy values at external boundary */
 			/*----------------------------------*/
 			for (i=1;i<=imax;i+=1)
@@ -241,53 +246,66 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 			}
 			/* and at interior boundary cells */
 			/*--------------------------------*/
-			for (i=1;i<=imax;i+=1)
-				for (j=1;j<=jmax;j+=1)
-					if (FLAG[i][j] >=B_N && FLAG[i][j] <=B_SO) 
+			for (i=1;i<=imax;i+=1) {
+				for (j=1;j<=jmax;j+=1) {
+					if (FLAG[i][j] >= B_N && FLAG[i][j] <= B_SO) 
 						switch (FLAG[i][j])
 					{
-						case B_N:{  P[i][j] = P[i][j+1];                 break;}
-						case B_O:{  P[i][j] = P[i+1][j];                 break;}
-						case B_S:{  P[i][j] = P[i][j-1];                 break;} 
-						case B_W:{  P[i][j] = P[i-1][j];                 break;}
-						case B_NO:{ P[i][j] = 0.5*(P[i][j+1]+P[i+1][j]); break;}
-						case B_SO:{ P[i][j] = 0.5*(P[i][j-1]+P[i+1][j]); break;}
-						case B_SW:{ P[i][j] = 0.5*(P[i][j-1]+P[i-1][j]); break;}
-						case B_NW:{ P[i][j] = 0.5*(P[i][j+1]+P[i-1][j]); break;}
-						default:                                         break;
+						case B_N:	{ P[i][j] = P[i][j+1];					break; }
+						case B_O:	{ P[i][j] = P[i+1][j];					break; }
+						case B_S:	{ P[i][j] = P[i][j-1];					break; } 
+						case B_W:	{ P[i][j] = P[i-1][j];					break; }
+						case B_NO:	{ P[i][j] = 0.5*(P[i][j+1]+P[i+1][j]);	break; }
+						case B_SO:	{ P[i][j] = 0.5*(P[i][j-1]+P[i+1][j]);	break; }
+						case B_SW:	{ P[i][j] = 0.5*(P[i][j-1]+P[i-1][j]);	break; }
+						case B_NW:	{ P[i][j] = 0.5*(P[i][j+1]+P[i-1][j]);	break; }
+						default:											break;
 					}
+				}
+			}
 
-					/* relaxation for fluid cells */
-					/*----------------------------*/
-					for (i=1;i<=imax;i+=1)
-						for (j=1;j<=jmax;j+=1)
-							if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100))
-								P[i][j] = (1.-omg)*P[i][j] - 
-								beta_2*((P[i+1][j]+P[i-1][j])*rdx2 +
-								(P[i][j+1]+P[i][j-1])*rdy2 - RHS[i][j]);
+			if (iter == 1)
+			print_array_to_file(P, imax+2, jmax+2, "P_copy.txt");
 
-					/* computation of residual */
-					/*-------------------------*/
-					*res = 0.0;
-					for (i=1;i<=imax;i++)
-						for (j=1;j<=jmax;j++)
-							if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100))   
-								/* only fluid cells */
-								/*------------------*/
-							{
-								add =  (P[i+1][j]-2*P[i][j]+P[i-1][j])*rdx2+
-									(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
-								*res += add*add;
-							}
+			/* relaxation for fluid cells */
+			/*----------------------------*/
+			for (i=1;i<=imax;i+=1) {
+				for (j=1;j<=jmax;j+=1) {
+					if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100))
+						P[i][j] = (1.-omg)*P[i][j] - 
+							beta_2*((P[i+1][j]+P[i-1][j])*rdx2 +
+							(P[i][j+1]+P[i][j-1])*rdy2 - RHS[i][j]);
+				}
+			}
 
-							*res = sqrt((*res)/ifull)/p0;
-							/* convergence? */
-							/*--------------*/
+			if (iter == 1)
+			print_array_to_file(P, imax+2, jmax+2, "P_relax.txt");
 
-							if (*res<eps)
-								return iter;
+			/* computation of residual */
+			/*-------------------------*/
+			*res = 0.0;
+			for (i=1;i<=imax;i++) {
+				for (j=1;j<=jmax;j++) {
+					/* only fluid cells */
+					if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)) {
+						add =  (P[i+1][j]-2*P[i][j]+P[i-1][j])*rdx2+
+							(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
+						
+						*res += add*add;
+					}
+				}
+			}
+
+			*res = sqrt((*res)/ifull)/p0;
+			
+			/* convergence? */
+			/*--------------*/
+			if (*res<eps) {
+				return iter;
+			}
 		}
 	}
+
 	return iter;
 }
 

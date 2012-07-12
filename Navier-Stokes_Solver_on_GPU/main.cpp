@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #include <CL/cl.h>
 
@@ -281,11 +282,12 @@ int main(int argc, char *argv[])
 	cl_mem F_d;
 	cl_mem G_d;
 	cl_mem RHS_d;
+	cl_mem P_d;
 
 	// Allocate memory for data on device
 	
 	// Create a buffer object (U_d)
-	U_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
+	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, NULL, &status);
 	if (status != CL_SUCCESS || U_d == NULL) {
 		printf("clCreateBuffer failed\n");
@@ -293,7 +295,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (V_d)
-	V_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
+	V_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, NULL, &status);
 	if (status != CL_SUCCESS || V_d == NULL) {
 		printf("clCreateBuffer failed\n");
@@ -325,7 +327,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (F_d)
-	F_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+	F_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, NULL, &status);
 	if (status != CL_SUCCESS || F_d == NULL) {
 		printf("clCreateBuffer failed\n");
@@ -333,7 +335,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (G_d)
-	G_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+	G_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, NULL, &status);
 	if (status != CL_SUCCESS || G_d == NULL) {
 		printf("clCreateBuffer failed\n");
@@ -341,17 +343,25 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (RHS_d)
-	RHS_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+	RHS_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, NULL, &status);
 	if (status != CL_SUCCESS || RHS_d == NULL) {
 		printf("clCreateBuffer failed\n");
 		exit(-1);
 	}
 
-	int *FLAG_h;
-	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h,  *RHS_h;
+	// Create a buffer object (P_d)
+	P_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+		datasize, NULL, &status);
+	if (status != CL_SUCCESS || P_d == NULL) {
+		printf("clCreateBuffer failed\n");
+		exit(-1);
+	}
 
-	REAL **P_h, **PSI_h, **ZETA_h, **HEAT_h;
+	int *FLAG_h;
+	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h,  *RHS_h, *P_h;
+
+	REAL **PSI_h, **ZETA_h, **HEAT_h;
 
 	FLAG_h	= (int *) malloc(datasize_int);
 	
@@ -361,8 +371,8 @@ int main(int argc, char *argv[])
 	F_h		= (REAL *) malloc(datasize);
 	G_h		= (REAL *) malloc(datasize);
 	RHS_h	= (REAL *) malloc(datasize);
+	P_h		= (REAL *) malloc(datasize);
 
-	P_h		= RMATRIX(0, imax+1, 0, jmax+1);
 	PSI_h	= RMATRIX(0, imax,	 0, jmax);
 	ZETA_h	= RMATRIX(1, imax-1, 1, jmax-1);
 	HEAT_h	= RMATRIX(0, imax,   0, jmax);
@@ -372,8 +382,8 @@ int main(int argc, char *argv[])
 	copy_array_real_2d_to_1d(U,		U_h,	imax+2, jmax+2);
 	copy_array_real_2d_to_1d(V,		V_h,	imax+2, jmax+2);
 	copy_array_real_2d_to_1d(TEMP,	TEMP_h, imax+2, jmax+2);
-
-	copy_array_real(P,		P_h,	imax+2, jmax+2);
+	copy_array_real_2d_to_1d(P,		P_h,	imax+2, jmax+2);
+	
 	copy_array_real(PSI,	PSI_h,	imax+1,	jmax+1);
 	copy_array_real(ZETA,	ZETA_h, imax-1, jmax-1);
 	copy_array_real(HEAT,	HEAT_h, imax+1,	jmax+1);
@@ -455,6 +465,10 @@ int main(int argc, char *argv[])
 	cl_kernel TEMP_kernel = NULL;
 	cl_kernel FG_kernel = NULL;
 	cl_kernel RHS_kernel = NULL;
+	cl_kernel POISSON_p0_kernel = NULL;
+	cl_kernel POISSON_1_comp_res_kernel = NULL;
+	cl_kernel POISSON_2_comp_res_kernel = NULL;
+	cl_kernel ADAP_UV_kernel = NULL;
 
 	// Create a kernel for computation of temperature TEMP
 	TEMP_kernel = clCreateKernel(program, "COMP_TEMP_kernel", &status);
@@ -477,7 +491,33 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
+	// Create a kernel for computation of initial pressure values for pressure P
+	POISSON_p0_kernel = clCreateKernel(program, "POISSON_p0_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed\n");
+		exit(-1);
+	}
 
+	// Create a kernel for computation of norm of residual for pressure P (method 1)
+	POISSON_1_comp_res_kernel = clCreateKernel(program, "POISSON_1_comp_res_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed\n");
+		exit(-1);
+	}
+
+	// Create a kernel for computation of norm of residual for pressure P (method 2)
+	POISSON_2_comp_res_kernel = clCreateKernel(program, "POISSON_2_comp_res_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed\n");
+		exit(-1);
+	}
+
+	// Create a kernel for computation of new velocity filed U, V
+	ADAP_UV_kernel = clCreateKernel(program, "ADAP_UV_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed\n");
+		exit(-1);
+	}
 
 	//-----------------------------------------------------
 	// STEP 10: Configure the work-item structure
@@ -517,32 +557,8 @@ int main(int argc, char *argv[])
 		//	SET_UVP_SURFACE(U, V, P, FLAG, GX, GY,
 		//		imax, jmax, Re, delx, dely, delt);
 		//} else {
-		//	ifull = imax*jmax-ibound;
+			ifull = imax*jmax-ibound;
 		//}
-
-		//-----------------------------------------------------
-		// STEP 9: Set arguments for kernels
-		//----------------------------------------------------- 
-
-		// Associate the input and output buffers with the TEMP_kernel 
-		status = clSetKernelArg(TEMP_kernel, 0, sizeof(cl_mem), &U_d);
-		status |= clSetKernelArg(TEMP_kernel, 1, sizeof(cl_mem), &V_d);
-		status |= clSetKernelArg(TEMP_kernel, 2, sizeof(cl_mem), &TEMP_d);
-		status |= clSetKernelArg(TEMP_kernel, 3, sizeof(cl_mem), &TEMP_new_d);
-		status |= clSetKernelArg(TEMP_kernel, 4, sizeof(cl_mem), &FLAG_d);
-		status |= clSetKernelArg(TEMP_kernel, 5, sizeof(int), &imax);
-		status |= clSetKernelArg(TEMP_kernel, 6, sizeof(int), &jmax);
-		status |= clSetKernelArg(TEMP_kernel, 7, sizeof(REAL), &delt);
-		status |= clSetKernelArg(TEMP_kernel, 8, sizeof(REAL), &delx);
-		status |= clSetKernelArg(TEMP_kernel, 9, sizeof(REAL), &dely);
-		status |= clSetKernelArg(TEMP_kernel, 10, sizeof(REAL), &gamma);
-		status |= clSetKernelArg(TEMP_kernel, 11, sizeof(REAL), &Re);
-		status |= clSetKernelArg(TEMP_kernel, 12, sizeof(REAL), &Pr);
-		if (status != CL_SUCCESS) {
-			printf("clSetKernelArg failed\n");
-			exit(-1);
-		}
-
 
 		//-----------------------------------------------------
 		// STEP 6: Write host data to device buffers
@@ -572,16 +588,47 @@ int main(int argc, char *argv[])
 		status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_FALSE, 0, 
 			datasize, RHS_h, 0, NULL, NULL);
 
+		status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+			datasize, P_h, 0, NULL, NULL);
+
 		if (status != CL_SUCCESS) {
 			printf("clEnqueueWriteBuffer failed\n");
 			exit(-1);
 		}
 
-		/* Compute new temperature */
-		/*-------------------------*/
+		//-----------------------------------------------------
+		// STEP 11: Enqueue the kernel for execution
+		//-----------------------------------------------------
+
 		cl_event event;
 
-		// Execute the kernel
+		/* Compute new temperature */
+		/*-------------------------*/
+
+		//-----------------------------------------------------
+		// STEP 9: Set arguments for kernels
+		//----------------------------------------------------- 
+
+		// Associate the input and output buffers with the TEMP_kernel 
+		status = clSetKernelArg(TEMP_kernel, 0, sizeof(cl_mem), &U_d);
+		status |= clSetKernelArg(TEMP_kernel, 1, sizeof(cl_mem), &V_d);
+		status |= clSetKernelArg(TEMP_kernel, 2, sizeof(cl_mem), &TEMP_d);
+		status |= clSetKernelArg(TEMP_kernel, 3, sizeof(cl_mem), &TEMP_new_d);
+		status |= clSetKernelArg(TEMP_kernel, 4, sizeof(cl_mem), &FLAG_d);
+		status |= clSetKernelArg(TEMP_kernel, 5, sizeof(int), &imax);
+		status |= clSetKernelArg(TEMP_kernel, 6, sizeof(int), &jmax);
+		status |= clSetKernelArg(TEMP_kernel, 7, sizeof(REAL), &delt);
+		status |= clSetKernelArg(TEMP_kernel, 8, sizeof(REAL), &delx);
+		status |= clSetKernelArg(TEMP_kernel, 9, sizeof(REAL), &dely);
+		status |= clSetKernelArg(TEMP_kernel, 10, sizeof(REAL), &gamma);
+		status |= clSetKernelArg(TEMP_kernel, 11, sizeof(REAL), &Re);
+		status |= clSetKernelArg(TEMP_kernel, 12, sizeof(REAL), &Pr);
+		if (status != CL_SUCCESS) {
+			printf("clSetKernelArg failed\n");
+			exit(-1);
+		}
+
+		// Execute the TEMP_kernel kernel
 		status = clEnqueueNDRangeKernel(cmdQueue, TEMP_kernel, 2, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, &event);
 		if(status != CL_SUCCESS) {
@@ -591,19 +638,8 @@ int main(int argc, char *argv[])
 
 		clWaitForEvents(1, &event);
 
-		// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
-		//status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0,
-		//	datasize, TEMP_h, 0, NULL, NULL);
-		//if (status != CL_SUCCESS) {
-		//	printf("clEnqueueReadBuffer failed\n");
-		//	exit(-1);
-		//}
-
 		/* Compute tentative velocity field (F, G) */
 		/*----------------------------------------*/
-		//-----------------------------------------------------
-		// STEP 11: Enqueue the kernel for execution
-		//-----------------------------------------------------
 
 		// Associate the input and output buffers with the FG_kernel 
 		status = clSetKernelArg(FG_kernel, 0, sizeof(cl_mem), &U_d);
@@ -626,15 +662,8 @@ int main(int argc, char *argv[])
 			printf("clSetKernelArg failed\n");
 			exit(-1);
 		}
-		
-		//status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
-		//	datasize, TEMP_h, 0, NULL, NULL);
-		//if (status != CL_SUCCESS) {
-		//	printf("clEnqueueWriteBuffer failed\n");
-		//	exit(-1);
-		//}
 
-		// Execute the kernel
+		// Execute the FG_kernel
 		status = clEnqueueNDRangeKernel(cmdQueue, FG_kernel, 2, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, &event);
 		if(status != CL_SUCCESS) {
@@ -644,25 +673,10 @@ int main(int argc, char *argv[])
 
 		clWaitForEvents(1, &event);
 
-		//-----------------------------------------------------
-		// STEP 12: Read the output buffer back to the host
-		//----------------------------------------------------- 
-
-		// Read the OpenCL output buffer (F_d) to the host output array (F_h)
-		//status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0,
-		//	datasize, F_h, 0, NULL, NULL);
-
-		// Read the OpenCL output buffer (G_d) to the host output array (G_h)
-		//status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0,
-		//	datasize, G_h, 0, NULL, NULL);
-
-		//if (status != CL_SUCCESS) {
-		//	printf("clEnqueueReadBuffer failed\n");
-		//	exit(-1);
-		//}
-
 		/* Compute right hand side for pressure equation */
 		/*-----------------------------------------------*/
+
+		// Associate the input and output buffers with the RHS_kernel 
 		status = clSetKernelArg(RHS_kernel, 0, sizeof(cl_mem), &F_d);
 		status |= clSetKernelArg(RHS_kernel, 1, sizeof(cl_mem), &G_d);
 		status |= clSetKernelArg(RHS_kernel, 2, sizeof(cl_mem), &RHS_d);
@@ -677,7 +691,7 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 		
-		// Execute the kernel
+		// Execute the RHS_kernel kernel
 		status = clEnqueueNDRangeKernel(cmdQueue, RHS_kernel, 2, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, &event);
 		if(status != CL_SUCCESS) {
@@ -687,33 +701,423 @@ int main(int argc, char *argv[])
 
 		clWaitForEvents(1, &event);
 
-		// Read the OpenCL output buffer (F_d) to the host output array (F_h)
-		status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-		status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
-			datasize, F_h, 0, NULL, NULL);
-		status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
-			datasize, G_h, 0, NULL, NULL);
-		status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
+		/* Solve the pressure equation by successive over relaxation */
+		/*-----------------------------------------------------------*/
+		//TODO because of time dependencies below
+		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
 			datasize, RHS_h, 0, NULL, NULL);
 		if (status != CL_SUCCESS) {
 			printf("clEnqueueReadBuffer failed\n");
 			exit(-1);
 		}
+		
+		int iter;
+		res = 0.0;
 
-		/* Solve the pressure equation by successive over relaxation */
-		/*-----------------------------------------------------------*/
-		//if (ifull > 0) {
-		//	itersor = POISSON(P_h, RHS_h, FLAG_h, imax, jmax, delx, dely,
-		//		eps, itermax, omg, &res, ifull, p_bound);
-		//}
+		if (ifull > 0) {
+			//itersor = POISSON(P_h, RHS_h, FLAG_h, imax, jmax, delx, dely,
+			//	eps, itermax, omg, &res, ifull, p_bound);
+			
 
-		//printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
-		//	t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
+			int iimax = imax + 2;
+			int jjmax = jmax + 2;
+
+			REAL p0 = 0.0;
+			
+
+			for (int i = 1; i <= iimax-1; i++) {
+				for (int j = 1; j <= jjmax-1; j++) {
+					if (FLAG_h[i*jmax + j] & C_F) {
+						p0 += P_h[i*jmax + j]*P_h[i*jmax + j];
+					}
+				}
+			}
+			
+			//TODO reduction
+			//// Associate the input and output buffers with the POISSON_p0_kernel
+			//status = clSetKernelArg(POISSON_p0_kernel, 0, sizeof(cl_mem), &P_d);
+			//status |= clSetKernelArg(POISSON_p0_kernel, 1, sizeof(cl_mem), &FLAG_d);
+			//status |= clSetKernelArg(POISSON_p0_kernel, 2, sizeof(int), &imax);
+			//status |= clSetKernelArg(POISSON_p0_kernel, 3, sizeof(int), &jmax);
+			//status |= clSetKernelArg(POISSON_p0_kernel, 4, sizeof(REAL), &p0);
+			//if (status != CL_SUCCESS) {
+			//	printf("clSetKernelArg failed\n");
+			//	exit(-1);
+			//}
+
+			//// Execute the POISSON_p0_kernel kernel
+			//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_p0_kernel, 2,
+			//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+			//if(status != CL_SUCCESS) {
+			//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+			//	exit(-1);
+			//}
+
+			p0 = sqrt(p0/ifull);
+			if (p0 < 0.0001)
+				p0 = 1.0;
+
+			/* SOR-iteration */
+			/*---------------*/
+			for (iter = 1; iter <= itermax; iter++) {
+
+				if (p_bound == 1) {
+					
+					REAL rdx2, rdy2;
+					REAL beta_2, beta_mod;
+					
+					rdx2 = 1./delx/delx;
+					rdy2 = 1./dely/dely;
+					beta_2 = -omg/(2.0*(rdx2+rdy2));
+					
+					for (int i = 1; i <= iimax-1; i++) {
+						for (int j = 1; j <= jjmax-1; j++) {
+							/* five point star for interior fluid cells */
+							if (FLAG_h[i*jmax + j] == 0x001f) {
+								P_h[i*jmax + j] = (1.-omg)*P_h[i*jmax + j] - 
+									beta_2*((P_h[(i+1)*jmax + j]+P_h[(i-1)*jmax + j])*rdx2 +
+									(P_h[i*jmax + j+1]+P_h[i*jmax + j-1])*rdy2 - RHS_h[i*jmax + j]);
+							}
+							/* modified star near boundary */
+							else if ((FLAG_h[i*jmax + j] & C_F) && (FLAG_h[i*jmax + j] < 0x0100)) { 
+								beta_mod = -omg/((eps_E+eps_W)*rdx2+(eps_N+eps_S)*rdy2);
+								
+								P_h[i*jmax + j] = (1.-omg)*P_h[i*jmax + j] -
+									beta_mod*( (eps_E*P_h[(i+1)*jmax + j]+eps_W*P_h[(i-1)*jmax + j])*rdx2 +
+									(eps_N*P_h[i*jmax + j+1]+eps_S*P_h[i*jmax + j-1])*rdy2 - RHS_h[i*jmax + j]);
+							}
+						}
+					}
+					
+					//TODO time dependencies
+					/* relaxation for fluid cells */
+					/*----------------------------*/
+					// Associate the input and output buffers with the POISSON_1_relaxation_kernel 
+					//status = clSetKernelArg(POISSON_1_relaxation_kernel, 0, sizeof(cl_mem), &P_d);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 1, sizeof(cl_mem), &RHS_d);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 2, sizeof(cl_mem), &FLAG_d);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 3, sizeof(int), &imax);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 4, sizeof(int), &jmax);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 5, sizeof(REAL), &delx);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 6, sizeof(REAL), &dely);
+					//status |= clSetKernelArg(POISSON_1_relaxation_kernel, 7, sizeof(REAL), &omg);
+					//if (status != CL_SUCCESS) {
+					//	printf("clSetKernelArg failed\n");
+					//	exit(-1);
+					//}
+					//
+					//// Execute the POISSON_1_relaxation_kernel
+					//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_1_relaxation_kernel, 2,
+					//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+					//if(status != CL_SUCCESS) {
+					//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
+
+					//clWaitForEvents(1, &event);
+
+					/* computation of residual */
+					/*-------------------------*/
+					REAL add;
+
+					for (int i = 1; i <= iimax-2; i++) {
+						for (int j = 1; j <= jjmax-2; j++) {
+							/* only fluid cells */
+							if ((FLAG_h[i*jjmax + j] & C_F) && (FLAG_h[i*jjmax + j] < 0x0100)) {
+								add = (	eps_E_h*(P_h[(i+1)*jjmax + j]-P_h[i*jjmax + j]) - 
+										eps_W_h*(P_h[i*jjmax + j]-P_h[(i-1)*jjmax + j])) * rdx2
+										+ (	eps_N_h*(P_h[i*jjmax + j+1]-P_h[i*jjmax + j]) -
+											eps_S_h*(P_h[i*jjmax + j]-P_h[i*jjmax + j-1])) * rdy2
+										- RHS_h[i*jjmax + j];
+
+								res += add * add;	
+							}
+						}
+					}
+
+					//TODO because of dependencies above
+					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueWriteBuffer failed\n");
+					//	exit(-1);
+					//}
+
+					//// Associate the input and output buffers with the POISSON_1_comp_res_kernel 
+					//status = clSetKernelArg(POISSON_1_comp_res_kernel, 0, sizeof(cl_mem), &P_d);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 1, sizeof(cl_mem), &RHS_d);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 2, sizeof(cl_mem), &FLAG_d);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 3, sizeof(int), &imax);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 4, sizeof(int), &jmax);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 5, sizeof(REAL), &delx);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 6, sizeof(REAL), &dely);
+					//status |= clSetKernelArg(POISSON_1_comp_res_kernel, 7, sizeof(REAL), &res);
+					//if (status != CL_SUCCESS) {
+					//	printf("clSetKernelArg failed\n");
+					//	exit(-1);
+					//}
+
+					//// Execute the POISSON_1_comp_res_kernel
+					//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_1_comp_res_kernel, 2,
+					//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+					//if(status != CL_SUCCESS) {
+					//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
+
+					//clWaitForEvents(1, &event);
+
+					res = sqrt(res/ifull)/p0;
+
+					/* convergence? */
+					if (res < eps) {
+						break;
+					}
+
+				} else if (p_bound == 2) {
+					
+					/* copy values at external boundary */
+					/*----------------------------------*/
+					for (int i = 1; i <= iimax-2; i++) {
+						P_h[i*jjmax] = P_h[i*jjmax + 1];
+						P_h[i*jjmax + (jjmax-1)] = P_h[i*jjmax + (jjmax-2)];
+					}
+					for (int j = 1; j <= jjmax-2; j++) {
+						P_h[j] = P_h[jjmax + j];
+						P_h[(iimax-1)*jjmax + j] = P_h[(iimax-2)*jjmax + j];
+					}
+					/* and at interior boundary cells */
+					/*--------------------------------*/
+					for (int i = 1; i <= iimax-2; i++) {
+						for (int j = 1; j <= jjmax-2; j++) {
+							if (FLAG_h[i*jjmax + j] >= B_N && FLAG_h[i*jjmax + j] <= B_SO) {
+								switch (FLAG_h[i*jjmax + j]) {
+								case B_N:	{ P_h[i*jjmax + j] = P_h[i*jjmax + j+1];							break; }
+								case B_O:	{ P_h[i*jjmax + j] = P_h[(i+1)*jjmax + j];							break; }
+								case B_S:	{ P_h[i*jjmax + j] = P_h[i*jjmax + j-1];							break; } 
+								case B_W:	{ P_h[i*jjmax + j] = P_h[(i-1)*jjmax + j];							break; }
+								case B_NO:	{ P_h[i*jjmax + j] = 0.5*(P_h[i*jjmax + j+1]+P_h[(i+1)*jjmax + j]);	break; }
+								case B_SO:	{ P_h[i*jjmax + j] = 0.5*(P_h[i*jjmax + j-1]+P_h[(i+1)*jjmax + j]);	break; }
+								case B_SW:	{ P_h[i*jjmax + j] = 0.5*(P_h[i*jjmax + j-1]+P_h[(i-1)*jjmax + j]);	break; }
+								case B_NW:	{ P_h[i*jjmax + j] = 0.5*(P_h[i*jjmax + j+1]+P_h[(i-1)*jjmax + j]);	break; }
+								default: break;
+								}
+							}
+						}
+					}
+
+					if (iter == 1)
+					print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_copy.txt");
+					
+					//TODO time dependencies
+					/* copy values at external and interior boundary cells	*/
+					/*------------------------------------------------------*/
+					// Associate the input and output buffers with the POISSON_p0_kernel
+					//status = clSetKernelArg(POISSON_2_copy_boundary_kernel, 0, sizeof(cl_mem), &P_d);
+					//status |= clSetKernelArg(POISSON_2_copy_boundary_kernel, 1, sizeof(cl_mem), &FLAG_d);
+					//status |= clSetKernelArg(POISSON_2_copy_boundary_kernel, 2, sizeof(int), &imax);
+					//status |= clSetKernelArg(POISSON_2_copy_boundary_kernel, 3, sizeof(int), &jmax);
+					//if (status != CL_SUCCESS) {
+					//	printf("clSetKernelArg failed\n");
+					//	exit(-1);
+					//}
+					
+					// Execute the POISSON_2_copy_boundary_kernel
+					//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_copy_boundary_kernel, 2,
+					//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+					//if(status != CL_SUCCESS) {
+					//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
+
+					//clWaitForEvents(1, &event);
+
+					REAL rdx2, rdy2;
+					REAL beta_2;
+					
+					rdx2 = 1./delx/delx;
+					rdy2 = 1./dely/dely;
+					beta_2 = -omg/(2.0*(rdx2+rdy2));
+						
+					for (int i = 1; i <= iimax-2; i++) {
+						for (int j = 1; j <= jjmax-2; j++) {
+							if ((FLAG_h[i*jjmax + j] & C_F) && (FLAG_h[i*jjmax + j] < 0x0100)) {
+								P_h[i*jjmax + j] = (1.-omg)*P_h[i*jjmax + j] - 
+									beta_2*((P_h[(i+1)*jjmax + j]+P_h[(i-1)*jjmax + j])*rdx2 +
+									(P_h[i*jjmax + j+1]+P_h[i*jjmax + j-1])*rdy2 - RHS_h[i*jjmax + j]);
+							}
+						}
+					}
+
+					if (iter == 1)
+					print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_relax.txt");
+
+					//TODO time dependencies
+					/* relaxation for fluid cells */
+					/*----------------------------*/
+					// Associate the input and output buffers with the POISSON_2_relaxation_kernel 
+					//status = clSetKernelArg(POISSON_2_relaxation_kernel, 0, sizeof(cl_mem), &P_d);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 1, sizeof(cl_mem), &RHS_d);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 2, sizeof(cl_mem), &FLAG_d);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 3, sizeof(int), &imax);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 4, sizeof(int), &jmax);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 5, sizeof(REAL), &delx);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 6, sizeof(REAL), &dely);
+					//status |= clSetKernelArg(POISSON_2_relaxation_kernel, 7, sizeof(REAL), &omg);
+					//if (status != CL_SUCCESS) {
+					//	printf("clSetKernelArg failed\n");
+					//	exit(-1);
+					//}
+
+					// Execute the POISSON_2_relaxation_kernel
+					//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_relaxation_kernel, 2,
+					//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+					//if(status != CL_SUCCESS) {
+					//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
+
+					//clWaitForEvents(1, &event);
+
+					/* computation of residual */
+					/*-------------------------*/
+					REAL add;
+
+					for (int i = 1; i <= iimax-2; i++) {
+						for (int j = 1; j <= jjmax-2; j++) {
+							if ((FLAG_h[i*jjmax + j] & C_F) && (FLAG_h[i*jjmax + j] < 0x0100)) {
+								add =	(P_h[(i+1)*jjmax + j]-2*P_h[i*jjmax + j]+P_h[(i-1)*jjmax + j])*rdx2
+										+ (P_h[i*jjmax + j+1]-2*P_h[i*jjmax + j]+P_h[i*jjmax + j-1])*rdy2
+										- RHS_h[i*jjmax + j];
+
+								res += add * add;
+							}
+						}
+					}
+					
+					//TODO reduction
+					////TODO because of dependencies above
+					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueWriteBuffer failed\n");
+					//	exit(-1);
+					//}
+
+					//// Associate the input and output buffers with the POISSON_2_comp_res_kernel 
+					//status = clSetKernelArg(POISSON_2_comp_res_kernel, 0, sizeof(cl_mem), &P_d);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 1, sizeof(cl_mem), &RHS_d);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 2, sizeof(cl_mem), &FLAG_d);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 3, sizeof(int), &imax);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 4, sizeof(int), &jmax);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &delx);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &dely);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(REAL), &res);
+					//if (status != CL_SUCCESS) {
+					//	printf("clSetKernelArg failed\n");
+					//	exit(-1);
+					//}
+
+					//// Execute the POISSON_2_comp_res_kernel
+					//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_comp_res_kernel, 2,
+					//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+					//if(status != CL_SUCCESS) {
+					//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
+
+					////TODO because of time depenencies above
+					//status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueReadBuffer failed\n");
+					//	exit(-1);
+					//}
+
+					//clWaitForEvents(1, &event);
+
+					res = sqrt(res/ifull)/p0;
+
+					/* convergence? */
+					if (res < eps) {
+						break;
+					}
+				}
+
+			}
+			
+		}
+
+		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
+			t_end, t+delt, delt, iter, res, ifull, isurf, ibound);  
 
 		/* Compute the new velocity field */
 		/*--------------------------------*/
 		//ADAP_UV(U_h, V_h, F_h, G_h, P_h, FLAG_h, imax, jmax, delt, delx, dely);
+
+		//TODO because of time dependencies in POISSON
+		status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+			datasize, P_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed\n");
+			exit(-1);
+		}
+
+		// Associate the input and output buffers with the ADAP_UV_kernel 
+		status = clSetKernelArg(ADAP_UV_kernel, 0, sizeof(cl_mem), &U_d);
+		status |= clSetKernelArg(ADAP_UV_kernel, 1, sizeof(cl_mem), &V_d);
+		status |= clSetKernelArg(ADAP_UV_kernel, 2, sizeof(cl_mem), &F_d);
+		status |= clSetKernelArg(ADAP_UV_kernel, 3, sizeof(cl_mem), &G_d);
+		status |= clSetKernelArg(ADAP_UV_kernel, 4, sizeof(cl_mem), &P_d);
+		status |= clSetKernelArg(ADAP_UV_kernel, 5, sizeof(cl_mem), &FLAG_d);
+		status |= clSetKernelArg(ADAP_UV_kernel, 6, sizeof(int), &imax);
+		status |= clSetKernelArg(ADAP_UV_kernel, 7, sizeof(int), &jmax);
+		status |= clSetKernelArg(ADAP_UV_kernel, 8, sizeof(REAL), &delt);
+		status |= clSetKernelArg(ADAP_UV_kernel, 9, sizeof(REAL), &delx);
+		status |= clSetKernelArg(ADAP_UV_kernel, 10, sizeof(REAL), &dely);
+
+		if (status != CL_SUCCESS) {
+			printf("clSetKernelArg failed\n");
+			exit(-1);
+		}
+
+		// Execute the ADAP_UV_kernel
+		status = clEnqueueNDRangeKernel(cmdQueue, ADAP_UV_kernel, 2,
+			NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+		if(status != CL_SUCCESS) {
+			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		//-----------------------------------------------------
+		// STEP 12: Read the output buffer back to the host
+		//----------------------------------------------------- 
+
+		// Read the OpenCL output buffer (U_d) to the host output array (U_h)
+		status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+			datasize, U_h, 0, NULL, NULL);
+		// Read the OpenCL output buffer (V_d) to the host output array (V_h)
+		status |= clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+			datasize, V_h, 0, NULL, NULL);
+		// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
+		status |= clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
+			datasize, TEMP_h, 0, NULL, NULL);
+		// Read the OpenCL output buffer (F_d) to the host output array (F_h)
+		status |= clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
+			datasize, F_h, 0, NULL, NULL);
+		// Read the OpenCL output buffer (G_d) to the host output array (G_h)
+		status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
+			datasize, G_h, 0, NULL, NULL);
+		// Read the OpenCL output buffer (RHS_d) to the host output array (RHS_h)
+		//status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
+		//	datasize, RHS_h, 0, NULL, NULL);
+		// Read the OpenCL output buffer (P_d) to the host output array (P_h)
+		status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+			datasize, P_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueReadBuffer failed\n");
+			exit(-1);
+		}
 
 		/* Set boundary conditions */
 		/*-------------------------*/
@@ -723,11 +1127,13 @@ int main(int argc, char *argv[])
 		/*---------------------------------*/
 		//SETSPECBCOND(problem, U_h, V_h, P_h, TEMP_h, imax, jmax, UI, VI);
 
+		//TODO other problems than dcav
 		//if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
 		//	!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
 		//	SET_UVP_SURFACE(U_h, V_h, P_h, FLAG_h, GX, GY, imax, jmax, Re, delx, dely, delt);
 		//}
 
+		//TODO Data Visualisation
 		/* Write data for visualization */
 		/*------------------------------*/
 		//if ((write & 8) && strcmp(vecfile, "none")) {     
@@ -773,10 +1179,13 @@ int main(int argc, char *argv[])
 
 	#ifdef PRINT
 
+	print_1darray_to_file(U_h, imax+2, jmax+2, "U_h.txt");
+	print_1darray_to_file(V_h, imax+2, jmax+2, "V_h.txt");
 	print_1darray_to_file(TEMP_h, imax+2, jmax+2, "TEMP_h.txt");
 	print_1darray_to_file(F_h, imax+2, jmax+2, "F_h.txt");
 	print_1darray_to_file(G_h, imax+2, jmax+2, "G_h.txt");
 	print_1darray_to_file(RHS_h, imax+2, jmax+2, "RHS_h.txt");
+	print_1darray_to_file(P_h, imax+2, jmax+2, "P_h.txt");
 
 	#endif
 
@@ -814,7 +1223,7 @@ int main(int argc, char *argv[])
 		//	SET_UVP_SURFACE(U, V, P, FLAG, GX, GY,
 		//		imax, jmax, Re, delx, dely, delt);
 		//} else {
-		//	ifull = imax*jmax-ibound;
+			ifull = imax*jmax-ibound;
 		//}
 
 		/* Compute new temperature */
@@ -833,17 +1242,17 @@ int main(int argc, char *argv[])
 
 	//	/* Solve the pressure equation by successive over relaxation */
 	//	/*-----------------------------------------------------------*/
-	//	if (ifull > 0) {
-	//		itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
-	//		eps, itermax, omg, &res, ifull, p_bound);
-	//	}
+		if (ifull > 0) {
+			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
+			eps, itermax, omg, &res, ifull, p_bound);
+		}
 
-	//	printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
-	//		t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
+		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
+			t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
 
 	//	/* Compute the new velocity field */
 	//	/*--------------------------------*/
-	//	ADAP_UV(U, V, F, G, P, FLAG, imax, jmax, delt, delx, dely);
+		ADAP_UV(U, V, F, G, P, FLAG, imax, jmax, delt, delx, dely);
 
 	//	/* Set boundary conditions */
 	//	/*-------------------------*/
@@ -853,11 +1262,13 @@ int main(int argc, char *argv[])
 	//	/*---------------------------------*/
 	//	SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
 
+	//TODO other problems than dcav
 	//	if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
 	//		!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
 	//		SET_UVP_SURFACE(U, V, P, FLAG, GX, GY, imax, jmax, Re, delx, dely, delt);
 	//	}
 
+	//TODO Data Visualisation
 	//	/* Write data for visualization */
 	//	/*------------------------------*/
 	//	if ((write & 8) && strcmp(vecfile, "none")) {     
@@ -902,11 +1313,11 @@ int main(int argc, char *argv[])
 
 	#ifdef PRINT
 
-	//print_array_to_file(U, imax+2, jmax+2, "U.txt");
-	//print_array_to_file(V, imax+2, jmax+2, "V.txt");
+	print_array_to_file(U, imax+2, jmax+2, "U.txt");
+	print_array_to_file(V, imax+2, jmax+2, "V.txt");
 	print_array_to_file(F, imax+2, jmax+2, "F.txt");
 	print_array_to_file(G, imax+2, jmax+2, "G.txt");
-	//print_array_to_file(P, imax+2, jmax+2, "P.txt");
+	print_array_to_file(P, imax+2, jmax+2, "P.txt");
 	print_array_to_file(TEMP, imax+2, jmax+2, "TEMP.txt");
 	//print_array_to_file(PSI, imax+1, jmax+1, "PSI.txt");
 	//print_array_to_file(ZETA, imax, jmax, "ZETA.txt");
@@ -923,6 +1334,18 @@ int main(int argc, char *argv[])
 	/*
 	 * Verification
 	 */
+
+	if (compare_array(U, U_h, imax+2, jmax+2)) {
+		printf("PASSED\n");
+	} else {
+		printf("FAILED\n");
+	}
+
+	if (compare_array(V, V_h, imax+2, jmax+2)) {
+		printf("PASSED\n");
+	} else {
+		printf("FAILED\n");
+	}
 
 	if (compare_array(TEMP, TEMP_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
@@ -948,6 +1371,12 @@ int main(int argc, char *argv[])
 		printf("FAILED\n");
 	}
 
+	if (compare_array(P, P_h, imax+2, jmax+2)) {
+		printf("PASSED\n");
+	} else {
+		printf("FAILED\n");
+	}
+
 	// Print timings
 	printf("  Speedup %.2fx\n\n", timer_cpu/timer_gpu);
 	
@@ -966,7 +1395,8 @@ int main(int argc, char *argv[])
 	clReleaseMemObject(TEMP_d);
 	clReleaseMemObject(TEMP_new_d);
 	clReleaseMemObject(F_d);
-	clReleaseMemObject(G_d);	
+	clReleaseMemObject(G_d);
+	clReleaseMemObject(P_d);
 
 	clReleaseKernel(FG_kernel);
 	clReleaseKernel(TEMP_kernel);
@@ -983,8 +1413,8 @@ int main(int argc, char *argv[])
 	free(F_h);
 	free(G_h);
 	free(RHS_h);
+	free(P_h);
 
-	FREE_RMATRIX(P_h,		0, imax+1,	0, jmax+1);
 	FREE_RMATRIX(PSI_h,		0, imax,	0, jmax);
 	FREE_RMATRIX(ZETA_h,	1, imax-1,	1, jmax-1);
 	FREE_RMATRIX(HEAT_h,	0, imax,	0, jmax);
