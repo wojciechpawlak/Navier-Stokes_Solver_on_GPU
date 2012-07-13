@@ -270,6 +270,22 @@ void print_array_int_to_file(int** A, int m, int n, char* filename)
 	fclose(fp);
 }
 
+void print_1darray_int_to_file(int* A, int m, int n, char* filename)
+{
+	FILE *fp;
+
+	fp = fopen(filename, "w");
+
+	for (int r = 0; r < m; r++) {
+		for (int s = 0; s < n; s++) {
+			fprintf(fp, "%d\t", A[r*n+s]);
+		}
+		fprintf(fp, "\n");
+	}
+
+	fclose(fp);
+}
+
 bool compare_array(REAL** A1, REAL* A2, int m, int n)
 {
 	REAL sum1, sum2;

@@ -162,25 +162,25 @@ void COMP_RHS_kernel(	__global REAL *F,
 	}
 }
 
-__kernel
-void POISSON_p0_kernel(	__global REAL *P,
-						__global int *FLAG,
-						int imax,
-						int jmax,
-						__global REAL *p0)
-{
-	imax = imax + 2;
-	jmax = jmax + 2;
-	
-	int i = get_global_id(0);
-	int j = get_global_id(1);
-
-	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
-		if (FLAG[i*jmax + j] & C_F) {
-			*p0 += P[i*jmax + j]*P[i*jmax + j];
-		}
-	}
-}
+//__kernel
+//void POISSON_p0_kernel(	__global REAL *P,
+//						__global int *FLAG,
+//						int imax,
+//						int jmax,
+//						__global REAL *p0)
+//{
+//	imax = imax + 2;
+//	jmax = jmax + 2;
+//	
+//	int i = get_global_id(0);
+//	int j = get_global_id(1);
+//
+//	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+//		if (FLAG[i*jmax + j] & C_F) {
+//			*p0 += P[i*jmax + j]*P[i*jmax + j];
+//		}
+//	}
+//}
 
 //__kernel
 //void POISSON_1_relaxation_kernel(	__global REAL *P,
@@ -223,41 +223,41 @@ void POISSON_p0_kernel(	__global REAL *P,
 //	}
 //}
 
-__kernel
-void POISSON_1_comp_res_kernel(	__global REAL *P,
-								__global REAL *RHS,
-								__global int *FLAG,
-								int imax,
-								int jmax,
-								REAL delx,
-								REAL dely,
-								__global REAL *res)
-{
-	imax = imax + 2;
-	jmax = jmax + 2;
-
-	int i = get_global_id(0);
-	int j = get_global_id(1);
-
-	REAL add;
-	REAL rdx2, rdy2;
-
-	rdx2 = 1./delx/delx;
-	rdy2 = 1./dely/dely;
-		
-	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) { 
-		/* only fluid cells */
-		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
-			add = (	eps_E_d*(P[(i+1)*jmax + j]-P[i*jmax + j]) - 
-					eps_W_d*(P[i*jmax + j]-P[(i-1)*jmax + j])) * rdx2
-					+ (	eps_N_d*(P[i*jmax + j+1]-P[i*jmax + j]) -
-						eps_S_d*(P[i*jmax + j]-P[i*jmax + j-1])) * rdy2
-					- RHS[i*jmax + j];
-
-			*res += add*add;
-		}
-	}
-}
+//__kernel
+//void POISSON_1_comp_res_kernel(	__global REAL *P,
+//								__global REAL *RHS,
+//								__global int *FLAG,
+//								int imax,
+//								int jmax,
+//								REAL delx,
+//								REAL dely,
+//								__global REAL *res)
+//{
+//	imax = imax + 2;
+//	jmax = jmax + 2;
+//
+//	int i = get_global_id(0);
+//	int j = get_global_id(1);
+//
+//	REAL add;
+//	REAL rdx2, rdy2;
+//
+//	rdx2 = 1./delx/delx;
+//	rdy2 = 1./dely/dely;
+//		
+//	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) { 
+//		/* only fluid cells */
+//		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+//			add = (	eps_E_d*(P[(i+1)*jmax + j]-P[i*jmax + j]) - 
+//					eps_W_d*(P[i*jmax + j]-P[(i-1)*jmax + j])) * rdx2
+//					+ (	eps_N_d*(P[i*jmax + j+1]-P[i*jmax + j]) -
+//						eps_S_d*(P[i*jmax + j]-P[i*jmax + j-1])) * rdy2
+//					- RHS[i*jmax + j];
+//
+//			*res += add*add;
+//		}
+//	}
+//}
 
 //__kernel
 //void POISSON_2_copy_boundary_kernel(__global REAL *P,
@@ -332,39 +332,39 @@ void POISSON_1_comp_res_kernel(	__global REAL *P,
 //	}
 //}
 
-__kernel
-void POISSON_2_comp_res_kernel(	__global REAL *P,
-								__global REAL *RHS,
-								__global int *FLAG,
-								int imax,
-								int jmax,
-								REAL delx,
-								REAL dely,
-								__global REAL *res)
-{
-	imax = imax + 2;
-	jmax = jmax + 2;
-
-	int i = get_global_id(0);
-	int j = get_global_id(1);
-
-	REAL add;
-	REAL rdx2, rdy2;
-
-	rdx2 = 1./delx/delx;
-	rdy2 = 1./dely/dely;
-
-	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
-		/* only fluid cells */
-		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
-			add =	(P[(i+1)*jmax + j]-2*P[i*jmax + j]+P[(i-1)*jmax + j])*rdx2
-					+ (P[i*jmax + j+1]-2*P[i*jmax + j]+P[i*jmax + j-1])*rdy2
-					- RHS[i*jmax + j];
-						
-			*res += add*add;
-		}
-	}
-}
+//__kernel
+//void POISSON_2_comp_res_kernel(	__global REAL *P,
+//								__global REAL *RHS,
+//								__global int *FLAG,
+//								int imax,
+//								int jmax,
+//								REAL delx,
+//								REAL dely,
+//								__global REAL *res)
+//{
+//	imax = imax + 2;
+//	jmax = jmax + 2;
+//
+//	int i = get_global_id(0);
+//	int j = get_global_id(1);
+//
+//	REAL add;
+//	REAL rdx2, rdy2;
+//
+//	rdx2 = 1./delx/delx;
+//	rdy2 = 1./dely/dely;
+//
+//	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+//		/* only fluid cells */
+//		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+//			add =	(P[(i+1)*jmax + j]-2*P[i*jmax + j]+P[(i-1)*jmax + j])*rdx2
+//					+ (P[i*jmax + j+1]-2*P[i*jmax + j]+P[i*jmax + j-1])*rdy2
+//					- RHS[i*jmax + j];
+//						
+//			*res += add*add;
+//		}
+//	}
+//}
 
 __kernel
 void ADAP_UV_kernel(__global REAL *U,

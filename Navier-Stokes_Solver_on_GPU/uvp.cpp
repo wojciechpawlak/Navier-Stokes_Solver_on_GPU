@@ -5,8 +5,6 @@
 #include "datadef.h"
 #include "init.h"
 #include "uvp.h"
-#include "utils.h"
-
 
 /*---------------------------------------------------------------*/
 /* Computation of new temperature                                */
@@ -173,8 +171,6 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 			if (FLAG[i][j] & C_F)
 				p0 += P[i][j]*P[i][j];
 
-	print_array_to_file(P, imax+2, jmax+2, "P_init.txt");
-
 	p0 = sqrt(p0/ifull);
 	if (p0 < 0.0001)
 		p0 = 1.0;
@@ -264,9 +260,6 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 				}
 			}
 
-			if (iter == 1)
-			print_array_to_file(P, imax+2, jmax+2, "P_copy.txt");
-
 			/* relaxation for fluid cells */
 			/*----------------------------*/
 			for (i=1;i<=imax;i+=1) {
@@ -277,9 +270,6 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 							(P[i][j+1]+P[i][j-1])*rdy2 - RHS[i][j]);
 				}
 			}
-
-			if (iter == 1)
-			print_array_to_file(P, imax+2, jmax+2, "P_relax.txt");
 
 			/* computation of residual */
 			/*-------------------------*/

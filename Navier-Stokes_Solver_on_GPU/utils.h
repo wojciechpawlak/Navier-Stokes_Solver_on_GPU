@@ -29,6 +29,8 @@ void print_1darray_to_file(REAL* A, int m, int n, char* filename);
 
 void print_array_int_to_file(int** A, int m, int n, char* filename);
 
+void print_1darray_int_to_file(int* A, int m, int n, char* filename);
+
 bool compare_array(REAL** A1, REAL* A2, int m, int n);
 
 #endif /* UTILS_H_ */

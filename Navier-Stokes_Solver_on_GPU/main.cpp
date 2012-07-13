@@ -465,9 +465,9 @@ int main(int argc, char *argv[])
 	cl_kernel TEMP_kernel = NULL;
 	cl_kernel FG_kernel = NULL;
 	cl_kernel RHS_kernel = NULL;
-	cl_kernel POISSON_p0_kernel = NULL;
-	cl_kernel POISSON_1_comp_res_kernel = NULL;
-	cl_kernel POISSON_2_comp_res_kernel = NULL;
+	//cl_kernel POISSON_p0_kernel = NULL;
+	//cl_kernel POISSON_1_comp_res_kernel = NULL;
+	//cl_kernel POISSON_2_comp_res_kernel = NULL;
 	cl_kernel ADAP_UV_kernel = NULL;
 
 	// Create a kernel for computation of temperature TEMP
@@ -492,25 +492,25 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a kernel for computation of initial pressure values for pressure P
-	POISSON_p0_kernel = clCreateKernel(program, "POISSON_p0_kernel", &status);
-	if (status != CL_SUCCESS) {
-		printf("clCreateKernel failed\n");
-		exit(-1);
-	}
+	//POISSON_p0_kernel = clCreateKernel(program, "POISSON_p0_kernel", &status);
+	//if (status != CL_SUCCESS) {
+	//	printf("clCreateKernel failed\n");
+	//	exit(-1);
+	//}
 
 	// Create a kernel for computation of norm of residual for pressure P (method 1)
-	POISSON_1_comp_res_kernel = clCreateKernel(program, "POISSON_1_comp_res_kernel", &status);
-	if (status != CL_SUCCESS) {
-		printf("clCreateKernel failed\n");
-		exit(-1);
-	}
+	//POISSON_1_comp_res_kernel = clCreateKernel(program, "POISSON_1_comp_res_kernel", &status);
+	//if (status != CL_SUCCESS) {
+	//	printf("clCreateKernel failed\n");
+	//	exit(-1);
+	//}
 
 	// Create a kernel for computation of norm of residual for pressure P (method 2)
-	POISSON_2_comp_res_kernel = clCreateKernel(program, "POISSON_2_comp_res_kernel", &status);
-	if (status != CL_SUCCESS) {
-		printf("clCreateKernel failed\n");
-		exit(-1);
-	}
+	//POISSON_2_comp_res_kernel = clCreateKernel(program, "POISSON_2_comp_res_kernel", &status);
+	//if (status != CL_SUCCESS) {
+	//	printf("clCreateKernel failed\n");
+	//	exit(-1);
+	//}
 
 	// Create a kernel for computation of new velocity filed U, V
 	ADAP_UV_kernel = clCreateKernel(program, "ADAP_UV_kernel", &status);
@@ -540,7 +540,7 @@ int main(int argc, char *argv[])
 	 * Main time loop
 	 */
 	t=0.0;
-	//for (t=0.0, cycle=0; t < t_end; t+=delt, cycle++) {
+	for (t=0.0, cycle=0; t < t_end; t+=delt, cycle++) {
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
 
@@ -715,10 +715,6 @@ int main(int argc, char *argv[])
 		res = 0.0;
 
 		if (ifull > 0) {
-			//itersor = POISSON(P_h, RHS_h, FLAG_h, imax, jmax, delx, dely,
-			//	eps, itermax, omg, &res, ifull, p_bound);
-			
-
 			int iimax = imax + 2;
 			int jjmax = jmax + 2;
 
@@ -905,9 +901,6 @@ int main(int argc, char *argv[])
 							}
 						}
 					}
-
-					if (iter == 1)
-					print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_copy.txt");
 					
 					//TODO time dependencies
 					/* copy values at external and interior boundary cells	*/
@@ -948,9 +941,6 @@ int main(int argc, char *argv[])
 							}
 						}
 					}
-
-					if (iter == 1)
-					print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_relax.txt");
 
 					//TODO time dependencies
 					/* relaxation for fluid cells */
@@ -1053,7 +1043,6 @@ int main(int argc, char *argv[])
 
 		/* Compute the new velocity field */
 		/*--------------------------------*/
-		//ADAP_UV(U_h, V_h, F_h, G_h, P_h, FLAG_h, imax, jmax, delt, delx, dely);
 
 		//TODO because of time dependencies in POISSON
 		status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
@@ -1121,11 +1110,11 @@ int main(int argc, char *argv[])
 
 		/* Set boundary conditions */
 		/*-------------------------*/
-		//SETBCOND(U_h, V_h, P_h, TEMP_h, FLAG_h, imax, jmax, wW, wE, wN, wS);
+		SETBCOND_1d(U_h, V_h, P_h, TEMP_h, FLAG_h, imax, jmax, wW, wE, wN, wS);
 		/* Set special boundary conditions */
 		/* Overwrite preset default values */
 		/*---------------------------------*/
-		//SETSPECBCOND(problem, U_h, V_h, P_h, TEMP_h, imax, jmax, UI, VI);
+		SETSPECBCOND_1d(problem, U_h, V_h, P_h, TEMP_h, imax, jmax, UI, VI);
 
 		//TODO other problems than dcav
 		//if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
@@ -1153,7 +1142,7 @@ int main(int argc, char *argv[])
 		//	STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
 		//		U_h, V_h, FLAG_h, N, Particlelines);
 		//}
-	//}           
+	}           
 	
 	/*
 	 * End of main time loop
@@ -1186,6 +1175,10 @@ int main(int argc, char *argv[])
 	print_1darray_to_file(G_h, imax+2, jmax+2, "G_h.txt");
 	print_1darray_to_file(RHS_h, imax+2, jmax+2, "RHS_h.txt");
 	print_1darray_to_file(P_h, imax+2, jmax+2, "P_h.txt");
+	//print_1darray_to_file(PSI_h, imax+1, jmax+1, "PSI_h.txt");
+	//print_1darray_to_file(ZETA_h, imax, jmax, "ZETA_h.txt");
+	//print_1darray_to_file(HEAT_h, imax+1, jmax+1, "HEAT_h.txt");
+	print_1darray_int_to_file(FLAG_h, imax+2, jmax+2, "FLAG_h.txt");
 
 	#endif
 
@@ -1208,7 +1201,7 @@ int main(int argc, char *argv[])
 	 */
 
 	t=0.0;
-	//for (t=0.0, cycle=0; t < t_end; t+=delt, cycle++) {
+	for (t=0.0, cycle=0; t < t_end; t+=delt, cycle++) {
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
 
@@ -1240,8 +1233,8 @@ int main(int argc, char *argv[])
 		/*-----------------------------------------------*/
 		COMP_RHS(F, G, RHS, FLAG, imax, jmax, delt, delx, dely);
 
-	//	/* Solve the pressure equation by successive over relaxation */
-	//	/*-----------------------------------------------------------*/
+		/* Solve the pressure equation by successive over relaxation */
+		/*-----------------------------------------------------------*/
 		if (ifull > 0) {
 			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
 			eps, itermax, omg, &res, ifull, p_bound);
@@ -1250,17 +1243,17 @@ int main(int argc, char *argv[])
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
 			t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
 
-	//	/* Compute the new velocity field */
-	//	/*--------------------------------*/
+		/* Compute the new velocity field */
+		/*--------------------------------*/
 		ADAP_UV(U, V, F, G, P, FLAG, imax, jmax, delt, delx, dely);
 
-	//	/* Set boundary conditions */
-	//	/*-------------------------*/
-	//	SETBCOND(U, V, P, TEMP, FLAG, imax, jmax, wW, wE, wN, wS);
-	//	/* Set special boundary conditions */
-	//	/* Overwrite preset default values */
-	//	/*---------------------------------*/
-	//	SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
+		/* Set boundary conditions */
+		/*-------------------------*/
+		SETBCOND(U, V, P, TEMP, FLAG, imax, jmax, wW, wE, wN, wS);
+		/* Set special boundary conditions */
+		/* Overwrite preset default values */
+		/*---------------------------------*/
+		SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
 
 	//TODO other problems than dcav
 	//	if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
@@ -1288,7 +1281,7 @@ int main(int argc, char *argv[])
 	//		STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
 	//			U, V, FLAG, N, Particlelines);
 	//	}
-	//}           
+	}           
 	
 	/*
 	 * End of main time loop
@@ -1315,14 +1308,14 @@ int main(int argc, char *argv[])
 
 	print_array_to_file(U, imax+2, jmax+2, "U.txt");
 	print_array_to_file(V, imax+2, jmax+2, "V.txt");
+	print_array_to_file(TEMP, imax+2, jmax+2, "TEMP.txt");
 	print_array_to_file(F, imax+2, jmax+2, "F.txt");
 	print_array_to_file(G, imax+2, jmax+2, "G.txt");
+	print_array_to_file(RHS, imax+2, jmax+2, "RHS.txt");
 	print_array_to_file(P, imax+2, jmax+2, "P.txt");
-	print_array_to_file(TEMP, imax+2, jmax+2, "TEMP.txt");
 	//print_array_to_file(PSI, imax+1, jmax+1, "PSI.txt");
 	//print_array_to_file(ZETA, imax, jmax, "ZETA.txt");
 	//print_array_to_file(HEAT, imax+1, jmax+1, "HEAT.txt");
-	print_array_to_file(RHS, imax+2, jmax+2, "RHS.txt");
 	//print_array_int_to_file(FLAG, imax+2, jmax+2, "FLAG.txt");
 
 	#endif
@@ -1335,42 +1328,49 @@ int main(int argc, char *argv[])
 	 * Verification
 	 */
 
+	printf("U:\n");
 	if (compare_array(U, U_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
+	printf("V:\n");
 	if (compare_array(V, V_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
+	printf("TEMP:\n");
 	if (compare_array(TEMP, TEMP_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
+	printf("F:\n");
 	if (compare_array(F, F_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
+	printf("G:\n");
 	if (compare_array(G, G_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
+	printf("RHS:\n");
 	if (compare_array(RHS, RHS_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
+	printf("P:\n");
 	if (compare_array(P, P_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
@@ -1438,4 +1438,4 @@ int main(int argc, char *argv[])
 
 	printf("End of program\n");
 	return(0);
-}
+ }
