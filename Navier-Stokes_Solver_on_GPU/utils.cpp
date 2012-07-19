@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "datadef.h"
 
@@ -299,7 +300,7 @@ bool compare_array(REAL** A1, REAL* A2, int m, int n)
 	}  
 
 	printf("%10.10f\t%10.10f\n", sum1, sum2);
-	if (sum1 == sum2)
+	if (fabs(sum1 - sum2) < 10e-5)
 		return true;
 	else
 		return false;

@@ -456,14 +456,13 @@ void SETSPECBCOND_1d(char* problem, REAL *U, REAL *V, REAL *P,REAL *TEMP,
 
 	int i, j;
 
-	if ((strcmp(problem, "drop") == 0) || (strcmp(problem, "dam") == 0))
+	if ((strcmp(problem, "drop") == 0) || (strcmp(problem, "dam") == 0)) {
 		return;
-
+	}
 	/*-----------------------------------------------------------*/
 	/* Driven Cavity: U = 1.0 at the upper boundary              */
 	/*-----------------------------------------------------------*/
-	else if (strcmp(problem, "dcavity") == 0)
-	{
+	else if (strcmp(problem, "dcavity") == 0) {
 		for (i = 0; i <= imax-2; i++) {
 			U[i*jmax + (jmax-1)] = 2.0 - U[i*jmax + (jmax-2)];
 		}
@@ -474,8 +473,7 @@ void SETSPECBCOND_1d(char* problem, REAL *U, REAL *V, REAL *P,REAL *TEMP,
 	/* Flow past a backward facing step, with or without free boundary */
 	/*                  U = 1.0 at the left boundary                   */
 	/*-----------------------------------------------------------------*/
-	else if (strcmp(problem, "backstep") == 0 || strcmp(problem, "wave") == 0)
-	{
+	else if (strcmp(problem, "backstep") == 0 || strcmp(problem, "wave") == 0) {
 		for (j = (jmax/2)+1; j <= jmax-2; j++) {
 			U[0*jmax + j]    =   1.0;
 		}
@@ -485,8 +483,7 @@ void SETSPECBCOND_1d(char* problem, REAL *U, REAL *V, REAL *P,REAL *TEMP,
 	/*--------------------------------------------------------------*/
 	/* Flow past an obstacle: U = 1.0 at left boundary              */
 	/*--------------------------------------------------------------*/
-	else if (strcmp(problem, "plate") == 0 || strcmp(problem, "circle") == 0)
-	{
+	else if (strcmp(problem, "plate") == 0 || strcmp(problem, "circle") == 0) {
 		V[0*jmax + 0] = 2*VI-V[1*jmax + 0];
 		for (j = 1; j <= jmax-2; j++)
 		{
@@ -500,7 +497,7 @@ void SETSPECBCOND_1d(char* problem, REAL *U, REAL *V, REAL *P,REAL *TEMP,
 	/*---------------------------------------------------------------------*/
 	/* Inflow for injection molding: U = 1.0 in the mid of left boundary   */
 	/*---------------------------------------------------------------------*/
-	else if (strcmp(problem, "molding") == 0){
+	else if (strcmp(problem, "molding") == 0) {
 		for (j = (int)(0.4*jmax)+1; j <= (int)(0.6*jmax); j++) {
 			U[0*jmax + j] = 1.0;       
 		}
@@ -511,8 +508,7 @@ void SETSPECBCOND_1d(char* problem, REAL *U, REAL *V, REAL *P,REAL *TEMP,
 	/* natural convection or fluidtrap: left T = 0.5 right T = -0.5     */
 	/*                          upper and lower wall adiabatic          */
 	/*------------------------------------------------------------------*/
-	else if (strcmp(problem, "convection") == 0 || strcmp(problem, "fluidtrap") == 0)
-	{
+	else if (strcmp(problem, "convection") == 0 || strcmp(problem, "fluidtrap") == 0) {
 		for (j = 0; j <= jmax-1; j++)
 		{
 			TEMP[0*jmax + j] = 2*(0.5)-TEMP[1*jmax + j];				// left wall heated
@@ -530,8 +526,7 @@ void SETSPECBCOND_1d(char* problem, REAL *U, REAL *V, REAL *P,REAL *TEMP,
 	/* Rayleigh-Benard flow: top T = -0.5 bottom T = 0.5  */
 	/*                       left and right adiabatic     */
 	/*----------------------------------------------------*/
-	else if (strcmp(problem, "rayleigh") == 0)
-	{
+	else if (strcmp(problem, "rayleigh") == 0) {
 		for (j = 0; j <= jmax-1; j++)
 		{
 			TEMP[0*jmax + j] = TEMP[1*jmax + j];         
