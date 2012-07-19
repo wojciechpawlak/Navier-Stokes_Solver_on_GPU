@@ -129,6 +129,8 @@ int main(int argc, char *argv[])
 
 	#ifdef GPU
 
+	/*--------------------------------------------------------------------------------*/
+
 	/*
 	 * OpenCL Initialization
 	 */
@@ -278,6 +280,8 @@ int main(int argc, char *argv[])
 	int WORKGROUPS = (elements + THREADS_PR_WORKGROUP)/THREADS_PR_WORKGROUP; 
 	printf("Work groups allocated = %d\n\n", WORKGROUPS);
 
+
+
 	// Input and Output arrays on the device
 	cl_mem U_d;
 	cl_mem V_d;
@@ -363,10 +367,9 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
+	// Allocate memory for host buffers for GPU execution
 	int *FLAG_h;
 	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h,  *RHS_h, *P_h;
-
-	REAL **PSI_h, **ZETA_h, **HEAT_h;
 
 	FLAG_h	= (int *) malloc(datasize_int);
 	
@@ -378,10 +381,7 @@ int main(int argc, char *argv[])
 	RHS_h	= (REAL *) malloc(datasize);
 	P_h		= (REAL *) malloc(datasize);
 
-	PSI_h	= RMATRIX(0, imax,	 0, jmax);
-	ZETA_h	= RMATRIX(1, imax-1, 1, jmax-1);
-	HEAT_h	= RMATRIX(0, imax,   0, jmax);
-
+	// Copy initial contents for host buffers from original arrays
 	copy_array_int_2d_to_1d(FLAG,	FLAG_h, imax+2, jmax+2);
 
 	copy_array_real_2d_to_1d(U,		U_h,	imax+2, jmax+2);
@@ -389,6 +389,14 @@ int main(int argc, char *argv[])
 	copy_array_real_2d_to_1d(TEMP,	TEMP_h, imax+2, jmax+2);
 	copy_array_real_2d_to_1d(P,		P_h,	imax+2, jmax+2);
 	
+
+
+	REAL **PSI_h, **ZETA_h, **HEAT_h;
+
+	PSI_h	= RMATRIX(0, imax,	 0, jmax);
+	ZETA_h	= RMATRIX(1, imax-1, 1, jmax-1);
+	HEAT_h	= RMATRIX(0, imax,   0, jmax);
+
 	copy_array_real(PSI,	PSI_h,	imax+1,	jmax+1);
 	copy_array_real(ZETA,	ZETA_h, imax-1, jmax-1);
 	copy_array_real(HEAT,	HEAT_h, imax+1,	jmax+1);
@@ -453,7 +461,7 @@ int main(int argc, char *argv[])
 		printf("No build errors\n");
 	}
 
-
+	/*--------------------------------------------------------------------------------*/
 	
 	/*
 	 * GPU Execution
@@ -589,6 +597,42 @@ int main(int argc, char *argv[])
 
 	start_gpu = clock();
 
+	//-----------------------------------------------------
+	// STEP 6: Write host data to device buffers
+	//----------------------------------------------------- 
+
+	status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_FALSE, 0, 
+		datasize_int, FLAG_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, U_d, CL_FALSE, 0, 
+		datasize, U_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, V_d, CL_FALSE, 0, 
+		datasize, V_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
+		datasize, TEMP_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
+		datasize, TEMP_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_FALSE, 0, 
+		datasize, F_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_FALSE, 0, 
+		datasize, G_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_FALSE, 0, 
+		datasize, RHS_h, 0, NULL, NULL);
+
+	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+		datasize, P_h, 0, NULL, NULL);
+
+	if (status != CL_SUCCESS) {
+		printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
 	/*
 	 * Main time loop
 	 */
@@ -596,7 +640,7 @@ int main(int argc, char *argv[])
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
 
-		//TODO other problems than dcav
+		//TODO make it work for other problems than dcav
 		/* Determine fluid cells for free boundary problems */
 		/* and set boundary values at free surface          */
 		/*--------------------------------------------------*/
@@ -612,41 +656,7 @@ int main(int argc, char *argv[])
 			ifull = imax*jmax-ibound;
 		//}
 
-		//-----------------------------------------------------
-		// STEP 6: Write host data to device buffers
-		//----------------------------------------------------- 
-
-		status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_FALSE, 0, 
-			datasize_int, FLAG_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, U_d, CL_FALSE, 0, 
-			datasize, U_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, V_d, CL_FALSE, 0, 
-			datasize, V_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_FALSE, 0, 
-			datasize, F_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_FALSE, 0, 
-			datasize, G_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_FALSE, 0, 
-			datasize, RHS_h, 0, NULL, NULL);
-
-		status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
-			datasize, P_h, 0, NULL, NULL);
-
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
+		
 
 		//-----------------------------------------------------
 		// STEP 11: Enqueue the kernel for execution
@@ -755,7 +765,7 @@ int main(int argc, char *argv[])
 
 		/* Solve the pressure equation by successive over relaxation */
 		/*-----------------------------------------------------------*/
-		//TODO because of time dependencies below
+		//TODO because of CPU versions of Relaxation and Comp Res kernels
 		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
 			datasize, RHS_h, 0, NULL, NULL);
 		if (status != CL_SUCCESS) {
@@ -1278,36 +1288,6 @@ int main(int argc, char *argv[])
 
 		clWaitForEvents(1, &event);
 
-		//-----------------------------------------------------
-		// STEP 12: Read the output buffer back to the host
-		//----------------------------------------------------- 
-
-		// Read the OpenCL output buffer (U_d) to the host output array (U_h)
-		status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
-			datasize, U_h, 0, NULL, NULL);
-		// Read the OpenCL output buffer (V_d) to the host output array (V_h)
-		status |= clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
-			datasize, V_h, 0, NULL, NULL);
-		// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
-		status |= clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-		// Read the OpenCL output buffer (F_d) to the host output array (F_h)
-		status |= clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
-			datasize, F_h, 0, NULL, NULL);
-		// Read the OpenCL output buffer (G_d) to the host output array (G_h)
-		status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
-			datasize, G_h, 0, NULL, NULL);
-		// Read the OpenCL output buffer (RHS_d) to the host output array (RHS_h)
-		status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
-			datasize, RHS_h, 0, NULL, NULL);
-		// Read the OpenCL output buffer (P_d) to the host output array (P_h)
-		status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-			datasize, P_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
 		//TODO other problems than dcav
 		//if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
 		//	!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
@@ -1334,36 +1314,47 @@ int main(int argc, char *argv[])
 		//	STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
 		//		U_h, V_h, FLAG_h, N, Particlelines);
 		//}
-	}           
-	
-
-
-
-
-
-	//status |= clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
-	//	datasize, F_h, 0, NULL, NULL);
-	//// Read the OpenCL output buffer (G_d) to the host output array (G_h)
-	//status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
-	//	datasize, G_h, 0, NULL, NULL);
-	//// Read the OpenCL output buffer (RHS_d) to the host output array (RHS_h)
-	////status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
-	////	datasize, RHS_h, 0, NULL, NULL);
-	//// Read the OpenCL output buffer (P_d) to the host output array (P_h)
-	//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-	//	datasize, P_h, 0, NULL, NULL);
-	//if (status != CL_SUCCESS) {
-	//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-	//	exit(-1);
-	//}
+	}  
 
 	/*
 	 * End of main time loop
 	 */
+	
+	//-----------------------------------------------------
+	// STEP 12: Read the output buffer back to the host
+	//----------------------------------------------------- 
+
+	// Read the OpenCL output buffer (U_d) to the host output array (U_h)
+	status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+		datasize, U_h, 0, NULL, NULL);
+	// Read the OpenCL output buffer (V_d) to the host output array (V_h)
+	status |= clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+		datasize, V_h, 0, NULL, NULL);
+	// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
+	status |= clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
+		datasize, TEMP_h, 0, NULL, NULL);
+	// Read the OpenCL output buffer (F_d) to the host output array (F_h)
+	status |= clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
+		datasize, F_h, 0, NULL, NULL);
+	// Read the OpenCL output buffer (G_d) to the host output array (G_h)
+	status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
+		datasize, G_h, 0, NULL, NULL);
+	// Read the OpenCL output buffer (RHS_d) to the host output array (RHS_h)
+	status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
+		datasize, RHS_h, 0, NULL, NULL);
+	// Read the OpenCL output buffer (P_d) to the host output array (P_h)
+	status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+		datasize, P_h, 0, NULL, NULL);
+	if (status != CL_SUCCESS) {
+		printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
 
 	stop_gpu = clock();
 
 	timer_gpu = (double) (stop_gpu - start_gpu) / CLOCKS_PER_SEC;
+
+	printf("  GPU time    : %.4f (ms)\n", timer_gpu);
 
 	//TODO input for GPU
 	//if (strcmp(vecfile,"none"))
@@ -1376,8 +1367,6 @@ int main(int argc, char *argv[])
 	//if (strcmp(outfile,"none")) {
 	//	WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 	//}
-
-	printf("  GPU time    : %.4f (ms)\n", timer_gpu);
 
 	#ifdef PRINT
 
@@ -1396,6 +1385,8 @@ int main(int argc, char *argv[])
 	#endif
 
 	#endif
+
+	/*--------------------------------------------------------------------------------*/
 
 	#ifdef CPU
 
@@ -1466,32 +1457,32 @@ int main(int argc, char *argv[])
 		/*---------------------------------*/
 		SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
 
-	//TODO other problems than dcav
-	//	if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
-	//		!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
-	//		SET_UVP_SURFACE(U, V, P, FLAG, GX, GY, imax, jmax, Re, delx, dely, delt);
-	//	}
+		//TODO other problems than dcav
+		//	if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
+		//		!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
+		//		SET_UVP_SURFACE(U, V, P, FLAG, GX, GY, imax, jmax, Re, delx, dely, delt);
+		//	}
 
-	//TODO Data Visualisation
-	//	/* Write data for visualization */
-	//	/*------------------------------*/
-	//	if ((write & 8) && strcmp(vecfile, "none")) {     
-	//		COMPPSIZETA(U, V, PSI, ZETA, FLAG, imax, jmax, delx, dely);
-	//		COMP_HEAT(U, V, TEMP, HEAT, FLAG, Re, Pr, imax, jmax, delx, dely);
-	//		OUTPUTVEC_txt(U, V, P, TEMP, PSI, ZETA, HEAT, FLAG, xlength, ylength,
-	//			imax, jmax, vecfile);
-	//	}
-	//	if ((write & 8) && strcmp(outfile, "none")) {
-	//		WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
-	//	}
-	//	if (strcmp(tracefile, "none")) {
-	//		PARTICLE_TRACING(tracefile, t, imax, jmax, delx, dely, delt,
-	//			U, V, FLAG,	N, Particlelines, write);
-	//	}
-	//	if (strcmp(streakfile, "none")) {
-	//		STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
-	//			U, V, FLAG, N, Particlelines);
-	//	}
+		//TODO Data Visualisation
+		//	/* Write data for visualization */
+		//	/*------------------------------*/
+		//	if ((write & 8) && strcmp(vecfile, "none")) {     
+		//		COMPPSIZETA(U, V, PSI, ZETA, FLAG, imax, jmax, delx, dely);
+		//		COMP_HEAT(U, V, TEMP, HEAT, FLAG, Re, Pr, imax, jmax, delx, dely);
+		//		OUTPUTVEC_txt(U, V, P, TEMP, PSI, ZETA, HEAT, FLAG, xlength, ylength,
+		//			imax, jmax, vecfile);
+		//	}
+		//	if ((write & 8) && strcmp(outfile, "none")) {
+		//		WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
+		//	}
+		//	if (strcmp(tracefile, "none")) {
+		//		PARTICLE_TRACING(tracefile, t, imax, jmax, delx, dely, delt,
+		//			U, V, FLAG,	N, Particlelines, write);
+		//	}
+		//	if (strcmp(streakfile, "none")) {
+		//		STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
+		//			U, V, FLAG, N, Particlelines);
+		//	}
 	}           
 	
 	/*
@@ -1501,6 +1492,8 @@ int main(int argc, char *argv[])
 	stop_cpu = clock();
 
 	timer_cpu = (double) (stop_cpu - start_cpu) / CLOCKS_PER_SEC;
+
+	printf("  CPU time    : %.4f (ms)\n",timer_cpu);
 
 	//if (strcmp(vecfile, "none"))
 	//{     
@@ -1512,8 +1505,6 @@ int main(int argc, char *argv[])
 	//if (strcmp(outfile, "none")) {
 	//	WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 	//}
-
-	printf("  CPU time    : %.4f (ms)\n",timer_cpu);
 
 	#ifdef PRINT
 
@@ -1532,6 +1523,8 @@ int main(int argc, char *argv[])
 	#endif
 
 	#endif
+
+	/*--------------------------------------------------------------------------------*/
 
 	#ifdef VERIFY
 
@@ -1592,6 +1585,8 @@ int main(int argc, char *argv[])
 	printf("  Speedup %.2fx\n\n", timer_cpu/timer_gpu);
 	
 	#endif
+
+	/*--------------------------------------------------------------------------------*/
 
 	//-----------------------------------------------------
 	// STEP 13: Release OpenCL resources
