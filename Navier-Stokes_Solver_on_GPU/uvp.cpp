@@ -283,11 +283,16 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 							(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
 						
 						*res += add*add;
+
 					}
 				}
 			}
 
+			
+
 			*res = sqrt((*res)/ifull)/p0;
+
+			printf("%d %f\n", iter, *res);
 			
 			/* convergence? */
 			/*--------------*/

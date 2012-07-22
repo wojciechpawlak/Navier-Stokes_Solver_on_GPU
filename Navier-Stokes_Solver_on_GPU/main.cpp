@@ -21,7 +21,7 @@
 #define GPU
 #define CPU
 #define VERIFY
-#define PRINT
+//#define PRINT
 #define ON_CPU
 //#define ON_GPU
 #define ON_GPU_COPY
@@ -786,7 +786,6 @@ int main(int argc, char *argv[])
 #endif
 		
 		int iter;
-		res = 0.0;
 
 		if (ifull > 0) {
 			int iimax = imax + 2;
@@ -895,6 +894,8 @@ int main(int argc, char *argv[])
 					/* computation of residual */
 					/*-------------------------*/
 					REAL add;
+
+					res = 0.0;
 
 					for (int i = 1; i <= iimax-2; i++) {
 						for (int j = 1; j <= jjmax-2; j++) {
@@ -1099,6 +1100,8 @@ int main(int argc, char *argv[])
 					/*-------------------------*/
 					REAL add;
 
+					res = 0.0;
+
 					for (int i = 1; i <= iimax-2; i++) {
 						for (int j = 1; j <= jjmax-2; j++) {
 							if ((FLAG_h[i*jjmax + j] & C_F) && (FLAG_h[i*jjmax + j] < 0x0100)) {
@@ -1107,9 +1110,12 @@ int main(int argc, char *argv[])
 										- RHS_h[i*jjmax + j];
 
 								res += add * add;
+								
 							}
 						}
-					}
+					}		
+
+					
 
 #endif
 
@@ -1150,6 +1156,8 @@ int main(int argc, char *argv[])
 #endif
 
 					res = sqrt(res/ifull)/p0;
+
+					printf("%d %f\n", iter, res);
 
 					/* convergence? */
 					if (res < eps) {
@@ -1294,6 +1302,8 @@ int main(int argc, char *argv[])
 		//	SET_UVP_SURFACE(U_h, V_h, P_h, FLAG_h, GX, GY, imax, jmax, Re, delx, dely, delt);
 		//}
 
+#ifdef VISUAL
+
 		//TODO Data Visualisation
 		/* Write data for visualization */
 		/*------------------------------*/
@@ -1314,6 +1324,7 @@ int main(int argc, char *argv[])
 		//	STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
 		//		U_h, V_h, FLAG_h, N, Particlelines);
 		//}
+#endif
 	}  
 
 	/*
@@ -1356,6 +1367,8 @@ int main(int argc, char *argv[])
 
 	printf("  GPU time    : %.4f (ms)\n", timer_gpu);
 
+#ifdef VISUAL
+
 	//TODO input for GPU
 	//if (strcmp(vecfile,"none"))
 	//{     
@@ -1367,6 +1380,8 @@ int main(int argc, char *argv[])
 	//if (strcmp(outfile,"none")) {
 	//	WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 	//}
+
+#endif
 
 	#ifdef PRINT
 
@@ -1463,6 +1478,8 @@ int main(int argc, char *argv[])
 		//		SET_UVP_SURFACE(U, V, P, FLAG, GX, GY, imax, jmax, Re, delx, dely, delt);
 		//	}
 
+#ifdef VISUAL
+
 		//TODO Data Visualisation
 		//	/* Write data for visualization */
 		//	/*------------------------------*/
@@ -1483,6 +1500,8 @@ int main(int argc, char *argv[])
 		//		STREAKLINES(streakfile, write, imax, jmax, delx, dely, delt, t,
 		//			U, V, FLAG, N, Particlelines);
 		//	}
+
+#endif
 	}           
 	
 	/*
@@ -1495,6 +1514,8 @@ int main(int argc, char *argv[])
 
 	printf("  CPU time    : %.4f (ms)\n",timer_cpu);
 
+#ifdef VISUAL
+
 	//if (strcmp(vecfile, "none"))
 	//{     
 	//	COMPPSIZETA(U, V, PSI, ZETA, FLAG, imax, jmax, delx, dely);
@@ -1505,6 +1526,7 @@ int main(int argc, char *argv[])
 	//if (strcmp(outfile, "none")) {
 	//	WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 	//}
+#endif
 
 	#ifdef PRINT
 
