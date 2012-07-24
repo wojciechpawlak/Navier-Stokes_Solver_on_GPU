@@ -340,16 +340,39 @@ void POISSON_2_comp_res_kernel(	__global REAL *P,
 								int jmax,
 								REAL delx,
 								REAL dely,
-								__global REAL *res)
+								__global REAL *res_result,
+								__local REAL *scratch)
 {
-	imax = imax + 2;
-	jmax = jmax + 2;
+	imax = imax + 2; // imax == get_global_size(0)
+	jmax = jmax + 2; // jmax == get_global_size(1)
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	unsigned int gid = get_global_id(0);
+	unsigned int tid = get_local_id(0);
+	
+	int i = gid / imax;
+	int j = gid % jmax;
+
+	int ti = tid / imax;
+	int tj = tid % jmax;
+
+	//int j = get_global_id(1);
+
+	//int id = i * jmax + j; 
+
+	//__local REAL scratch[16*16];
+
+	//int li = get_local_id(0);
+	//int lj = get_local_id(1);
+
+	//int local_size_i = get_local_size(0);
+	//int local_size_j = get_local_size(1);
+
+	//int lid = li * get_local_size(1) + lj; 
 
 	REAL add;
 	REAL rdx2, rdy2;
+
+	//REAL result = 0.0;
 
 	rdx2 = 1./delx/delx;
 	rdy2 = 1./dely/dely;
@@ -361,8 +384,27 @@ void POISSON_2_comp_res_kernel(	__global REAL *P,
 					+ (P[i*jmax + j+1]-2*P[i*jmax + j]+P[i*jmax + j-1])*rdy2
 					- RHS[i*jmax + j];
 						
-			*res += add*add;
+			scratch[tid] = add*add;
+		} else {
+		scratch[tid] = 0.0;
 		}
+	} else {
+		scratch[tid] = 0.0;
+	}
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	// do reduction in shared mem
+	for (unsigned int s = 1; s < get_local_size(0); s *= 2) {
+		// modulo arithmetic is slow!
+		if ((tid % (2*s)) == 0) {
+			scratch[tid] += scratch[tid + s];
+		}
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
+
+	if (tid == 0) {
+		res_result[get_group_id(0)*get_num_groups(1) + get_group_id(1)] = scratch[0];
 	}
 }
 

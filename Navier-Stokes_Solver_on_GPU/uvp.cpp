@@ -5,7 +5,8 @@
 #include "datadef.h"
 #include "init.h"
 #include "uvp.h"
-//#include "utils.h"
+#include "utils.h"
+#include "alloc.h"
 
 /*---------------------------------------------------------------*/
 /* Computation of new temperature                                */
@@ -283,16 +284,13 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 							(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
 						
 						*res += add*add;
-
 					}
 				}
 			}
 
-			
-
 			*res = sqrt((*res)/ifull)/p0;
 
-			printf("%d %f\n", iter, *res);
+			//printf("%d %f\n", iter, *res); //TODO in cas of checking res
 			
 			/* convergence? */
 			/*--------------*/

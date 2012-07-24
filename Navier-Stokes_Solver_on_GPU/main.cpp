@@ -26,7 +26,7 @@
 //#define ON_GPU
 #define ON_GPU_COPY
 #define ON_CPU_RELAX
-#define ON_CPU_RES
+#define ON_GPU_RES
 
 int main(int argc, char *argv[])
 {
@@ -277,8 +277,12 @@ int main(int argc, char *argv[])
 
 	printf("Threads per work group = %d. \n", THREADS_PR_WORKGROUP);
 
-	int WORKGROUPS = (elements + THREADS_PR_WORKGROUP)/THREADS_PR_WORKGROUP; 
-	printf("Work groups allocated = %d\n\n", WORKGROUPS);
+	//int NUM_WORKGROUPS = (THREADS_PR_WORKGROUP * THREADS_PR_WORKGROUP) / BLOCK_SIZE;
+	int NUM_WORKGROUPS = (64*64) / (BLOCK_SIZE*BLOCK_SIZE);
+	//int NUM_WORKGROUPS = (64*64) / BLOCK_SIZE;
+
+	//int WORKGROUPS = (elements + THREADS_PR_WORKGROUP)/THREADS_PR_WORKGROUP; 
+	//printf("Work groups allocated = %d\n\n", WORKGROUPS);
 
 
 
@@ -292,7 +296,7 @@ int main(int argc, char *argv[])
 	cl_mem G_d;
 	cl_mem RHS_d;
 	cl_mem P_d;
-
+	cl_mem res_result_d;
 	// Allocate memory for data on device
 	
 	// Create a buffer object (U_d)
@@ -367,9 +371,18 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
+	// Create a buffer object (res_result) for residual computation partial results
+	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+		NUM_WORKGROUPS*sizeof(REAL), NULL, &status);
+	if (status != CL_SUCCESS || res_result_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
 	// Allocate memory for host buffers for GPU execution
 	int *FLAG_h;
-	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h,  *RHS_h, *P_h;
+	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h, *RHS_h, *P_h;
+	REAL *res_result_h;
 
 	FLAG_h	= (int *) malloc(datasize_int);
 	
@@ -380,6 +393,7 @@ int main(int argc, char *argv[])
 	G_h		= (REAL *) malloc(datasize);
 	RHS_h	= (REAL *) malloc(datasize);
 	P_h		= (REAL *) malloc(datasize);
+	res_result_h = (REAL *) malloc(NUM_WORKGROUPS*sizeof(REAL));
 
 	// Copy initial contents for host buffers from original arrays
 	copy_array_int_2d_to_1d(FLAG,	FLAG_h, imax+2, jmax+2);
@@ -592,8 +606,8 @@ int main(int argc, char *argv[])
 
 	size_t globalWorkSize[2];
 	//globalWorkSize[0] = WORKGROUPS*THREADS_PR_WORKGROUP;
-	globalWorkSize[0] = THREADS_PR_WORKGROUP;
-	globalWorkSize[1] = THREADS_PR_WORKGROUP;
+	globalWorkSize[0] = 64; // was 1024 x 1024 - far too big
+	globalWorkSize[1] = 64; //TODO 64 x 64 for matrix 50 x 50 for 2500 cells
 
 	start_gpu = clock();
 
@@ -627,6 +641,9 @@ int main(int argc, char *argv[])
 
 	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 		datasize, P_h, 0, NULL, NULL);
+	
+	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
+		NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 
 	if (status != CL_SUCCESS) {
 		printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -784,7 +801,6 @@ int main(int argc, char *argv[])
 		}
 
 #endif
-		
 		int iter;
 
 		if (ifull > 0) {
@@ -832,8 +848,7 @@ int main(int argc, char *argv[])
 
 			/* SOR-iteration */
 			/*---------------*/
-			for (iter = 1; iter <= itermax; iter++) {
-
+			for (iter = 1; iter <= itermax; iter++) {	
 				if (p_bound == 1) {
 
 #ifdef ON_CPU
@@ -954,6 +969,8 @@ int main(int argc, char *argv[])
 					}
 
 				} else if (p_bound == 2) {
+
+
 					
 #ifdef ON_CPU_COPY
 					/* copy values at external boundary */
@@ -1120,6 +1137,14 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_GPU_RES
+					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+						datasize, P_h, 0, NULL, NULL);
+					//status = clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
+					//	NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
+					if (status != CL_SUCCESS) {
+						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
 
 					//TODO reduction
 					// Associate the input and output buffers with the POISSON_2_comp_res_kernel 
@@ -1130,15 +1155,24 @@ int main(int argc, char *argv[])
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 4, sizeof(int), &jmax);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &delx);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &dely);
-					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(REAL), &res);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(cl_mem), &res_result_d);
+					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(cl_mem), &results_d);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(REAL)*64*64, NULL);
+
 					if (status != CL_SUCCESS) {
 						printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
 
+					size_t globalWorkSize1d[1];
+					size_t localWorkSize1d[1];
+
+					globalWorkSize1d[0] = 64 * 64;
+					localWorkSize1d[0] = BLOCK_SIZE*BLOCK_SIZE;
+
 					// Execute the POISSON_2_comp_res_kernel
-					status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_comp_res_kernel, 2,
-						NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
+					status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_comp_res_kernel, 1,
+						NULL, globalWorkSize1d, localWorkSize1d, 0, NULL, &event);
 					if(status != CL_SUCCESS) {
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
@@ -1149,15 +1183,23 @@ int main(int argc, char *argv[])
 					//TODO because of time dependencies above
 					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
 						datasize, P_h, 0, NULL, NULL);
+					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_TRUE, 0,
+						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-#endif
 
+					res = 0.0;
+
+					for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
+					{
+						res += res_result_h[group_id];
+					}
+#endif			
 					res = sqrt(res/ifull)/p0;
 
-					printf("%d %f\n", iter, res);
+					//printf("%d %f\n", iter, res);
 
 					/* convergence? */
 					if (res < eps) {
@@ -1625,6 +1667,7 @@ int main(int argc, char *argv[])
 	clReleaseMemObject(F_d);
 	clReleaseMemObject(G_d);
 	clReleaseMemObject(P_d);
+	clReleaseMemObject(res_result_d);
 
 	clReleaseKernel(FG_kernel);
 	clReleaseKernel(TEMP_kernel);
@@ -1642,6 +1685,7 @@ int main(int argc, char *argv[])
 	free(G_h);
 	free(RHS_h);
 	free(P_h);
+	free(res_result_h);
 
 	FREE_RMATRIX(PSI_h,		0, imax,	0, jmax);
 	FREE_RMATRIX(ZETA_h,	1, imax-1,	1, jmax-1);

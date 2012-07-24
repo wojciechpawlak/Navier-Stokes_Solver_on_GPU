@@ -360,3 +360,10 @@ void getDeviceInfo(cl_device_id* ID, cl_uint deviceCount)
 //		free(source);
 //		return 0;
 //}
+
+size_t getGlobalWorkSize()
+{
+
+
+
+}
