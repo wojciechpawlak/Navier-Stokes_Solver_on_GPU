@@ -16,7 +16,7 @@
 #include "visual.h"
 #include "surface.h"
 
-#define BLOCK_SIZE 16
+//#define BLOCK_SIZE 16
 
 #define GPU
 #define CPU
@@ -273,16 +273,19 @@ int main(int argc, char *argv[])
 	}
 
 	int MAX_THREADS_PR_WORKGROUP = buf2;
-	int THREADS_PR_WORKGROUP = argc > 2 ? atoi(argv[2]) : MAX_THREADS_PR_WORKGROUP;
+	int THREADS_PR_WORKGROUP = argc > 2 ? nextPow2(atoi(argv[2])) : MAX_THREADS_PR_WORKGROUP;
+
+	int BLOCK_SIZE = (int)sqrt((double)THREADS_PR_WORKGROUP);
 
 	printf("Threads per work group = %d. \n", THREADS_PR_WORKGROUP);
 
 	//int NUM_WORKGROUPS = (THREADS_PR_WORKGROUP * THREADS_PR_WORKGROUP) / BLOCK_SIZE;
-	int NUM_WORKGROUPS = (64*64) / (BLOCK_SIZE*BLOCK_SIZE);
+	int NUM_WORKGROUPS = (getGlobalSize(BLOCK_SIZE, imax) * getGlobalSize(BLOCK_SIZE, jmax))
+		/ (BLOCK_SIZE*BLOCK_SIZE);
 	//int NUM_WORKGROUPS = (64*64) / BLOCK_SIZE;
 
-	//int WORKGROUPS = (elements + THREADS_PR_WORKGROUP)/THREADS_PR_WORKGROUP; 
-	//printf("Work groups allocated = %d\n\n", WORKGROUPS);
+	//int NUM_WORKGROUPS = (elements + THREADS_PR_WORKGROUP)/THREADS_PR_WORKGROUP; 
+	printf("Work groups allocated = %d\n\n", NUM_WORKGROUPS);
 
 
 
@@ -600,14 +603,9 @@ int main(int argc, char *argv[])
 
 	// Define an index space (global work size) of work items for execution.
 	// A workgroup size (local work size) is not required, but can be used.
-	size_t localWorkSize[2];
-	localWorkSize[0] = BLOCK_SIZE;
-	localWorkSize[1] = BLOCK_SIZE;
+	size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
 
-	size_t globalWorkSize[2];
-	//globalWorkSize[0] = WORKGROUPS*THREADS_PR_WORKGROUP;
-	globalWorkSize[0] = 64; // was 1024 x 1024 - far too big
-	globalWorkSize[1] = 64; //TODO 64 x 64 for matrix 50 x 50 for 2500 cells
+	size_t globalWorkSize[] = {getGlobalSize(BLOCK_SIZE, imax), getGlobalSize(BLOCK_SIZE, jmax)};
 
 	start_gpu = clock();
 

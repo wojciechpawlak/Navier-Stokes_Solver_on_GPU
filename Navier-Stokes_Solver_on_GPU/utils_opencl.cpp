@@ -361,9 +361,25 @@ void getDeviceInfo(cl_device_id* ID, cl_uint deviceCount)
 //		return 0;
 //}
 
-size_t getGlobalWorkSize()
+unsigned int nextPow2(unsigned int x)
 {
+	--x;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+	return ++x;
+}
 
-
-
+size_t getGlobalSize(int group_size, int global_size) 
+{
+	int r = global_size % group_size;
+	if(r == 0) 
+	{
+		return global_size;
+	} else 
+	{
+		return global_size + group_size - r;
+	}
 }
