@@ -102,6 +102,9 @@ DocProject/Help/html
 # Click-Once directory
 publish
 
+# NVIDIA
+*.nvuser
+
 # Others
 [Bb]in
 [Oo]bj
