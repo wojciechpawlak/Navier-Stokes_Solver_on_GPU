@@ -157,7 +157,7 @@ void COMP_RHS(REAL **F, REAL **G, REAL **RHS, int **FLAG, int imax, int jmax,
 /*-------------------------------------------------------------*/
 int POISSON(REAL **P,REAL **RHS,int **FLAG,
 	int imax,int jmax,REAL delx,REAL dely,
-	REAL eps,int itermax,REAL omg,REAL *res,int ifull,int p_bound)
+	REAL eps,int itermax,REAL omg,REAL *res,int ifull,int p_bound, FILE* fp, int cycle)
 {
 	int i,j,iter;
 	REAL rdx2,rdy2;
@@ -284,13 +284,14 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 							(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
 						
 						*res += add*add;
+						fprintf(fp, "%d %d (%d,%d) %f\n", cycle, i, j, iter, *res);
 					}
 				}
 			}
 
 			*res = sqrt((*res)/ifull)/p0;
 
-			//printf("%d %f\n", iter, *res); //TODO in cas of checking res
+			//fprintf(fp, "%d %f\n", iter, *res); //TODO in case of checking res
 			
 			/* convergence? */
 			/*--------------*/

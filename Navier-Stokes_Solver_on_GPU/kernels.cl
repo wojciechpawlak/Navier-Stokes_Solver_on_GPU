@@ -162,25 +162,25 @@ void COMP_RHS_kernel(	__global REAL *F,
 	}
 }
 
-//__kernel
-//void POISSON_p0_kernel(	__global REAL *P,
-//						__global int *FLAG,
-//						int imax,
-//						int jmax,
-//						__global REAL *p0)
-//{
-//	imax = imax + 2;
-//	jmax = jmax + 2;
-//	
-//	int i = get_global_id(0);
-//	int j = get_global_id(1);
-//
-//	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
-//		if (FLAG[i*jmax + j] & C_F) {
-//			*p0 += P[i*jmax + j]*P[i*jmax + j];
-//		}
-//	}
-//}
+__kernel
+void POISSON_p0_kernel(	__global REAL *P,
+						__global int *FLAG,
+						int imax,
+						int jmax,
+						__global REAL *p0)
+{
+	imax = imax + 2;
+	jmax = jmax + 2;
+	
+	int i = get_global_id(0);
+	int j = get_global_id(1);
+
+	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+		if (FLAG[i*jmax + j] & C_F) {
+			*p0 += P[i*jmax + j]*P[i*jmax + j];
+		}
+	}
+}
 
 //__kernel
 //void POISSON_1_relaxation_kernel(	__global REAL *P,

@@ -24,12 +24,18 @@
 //#define PRINT
 #define ON_CPU
 //#define ON_GPU
-#define ON_GPU_COPY
+#define ON_CPU_COPY
 #define ON_CPU_RELAX
-#define ON_GPU_RES
+#define ON_CPU_RES
 
 int main(int argc, char *argv[])
 {
+	FILE* log_file_cpu;
+	log_file_cpu = fopen("logCPU.txt", "w");
+	
+	FILE* log_file_gpu;
+	log_file_gpu = fopen("logGPU.txt", "w");
+	
 	/*
 	 * Navier-Stokes Solver Initialization
 	 */
@@ -607,6 +613,10 @@ int main(int argc, char *argv[])
 
 	size_t globalWorkSize[] = {getGlobalSize(BLOCK_SIZE, imax), getGlobalSize(BLOCK_SIZE, jmax)};
 
+	size_t localWorkSize1d[] = {BLOCK_SIZE * BLOCK_SIZE};
+
+	size_t globalWorkSize1d[] = {getGlobalSize(BLOCK_SIZE, imax) * getGlobalSize(BLOCK_SIZE, jmax)};
+
 	start_gpu = clock();
 
 	//-----------------------------------------------------
@@ -971,6 +981,15 @@ int main(int argc, char *argv[])
 
 					
 #ifdef ON_CPU_COPY
+					//TODO because of time dependencies above
+					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+						datasize, P_h, 0, NULL, NULL);
+					if (status != CL_SUCCESS) {
+						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
+					
+					
 					/* copy values at external boundary */
 					/*----------------------------------*/
 					for (int i = 1; i <= iimax-2; i++) {
@@ -999,19 +1018,26 @@ int main(int argc, char *argv[])
 								}
 							}
 						}
-					}				
-#endif
+					}	
 
-#ifdef ON_GPU_COPY
-					//TODO time dependencies
-					/* copy values at external and interior boundary cells	*/
-					/*------------------------------------------------------*/
 					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
+#endif
+
+#ifdef ON_GPU_COPY
+					//TODO time dependencies
+					/* copy values at external and interior boundary cells	*/
+					/*------------------------------------------------------*/
+					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
 					
 					// Associate the input and output buffers with the POISSON_p0_kernel
 					status = clSetKernelArg(POISSON_2_copy_boundary_kernel, 0, sizeof(cl_mem), &P_d);
@@ -1043,12 +1069,15 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_CPU_RELAX					
-					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-					//	datasize, P_h, 0, NULL, NULL);
-					//if (status != CL_SUCCESS) {
-					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-					//	exit(-1);
-					//}
+					status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+						datasize, P_h, 0, NULL, NULL);
+					if (status != CL_SUCCESS) {
+						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
+
+					//if (cycle == 2 && iter == 1)
+					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_before.txt");
 
 					/* relaxation for fluid cells */
 					/*----------------------------*/
@@ -1064,6 +1093,16 @@ int main(int argc, char *argv[])
 									(P_h[i*jjmax + j+1]+P_h[i*jjmax + j-1])*rdy2 - RHS_h[i*jjmax + j]);
 							}
 						}
+					}
+
+					//if (cycle == 2 && iter == 1)
+					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_after.txt");
+
+					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+						datasize, P_h, 0, NULL, NULL);
+					if (status != CL_SUCCESS) {
+						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+						exit(-1);
 					}
 
 #endif
@@ -1125,7 +1164,7 @@ int main(int argc, char *argv[])
 										- RHS_h[i*jjmax + j];
 
 								res += add * add;
-								
+								fprintf(log_file_gpu, "%d %d (%d,%d) %f\n", cycle, i, j, iter, res);
 							}
 						}
 					}		
@@ -1135,10 +1174,8 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_GPU_RES
-					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
-						datasize, P_h, 0, NULL, NULL);
-					//status = clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
-					//	NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
+					status = clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
+						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
 						exit(-1);
@@ -1162,12 +1199,6 @@ int main(int argc, char *argv[])
 						exit(-1);
 					}
 
-					size_t globalWorkSize1d[1];
-					size_t localWorkSize1d[1];
-
-					globalWorkSize1d[0] = 64 * 64;
-					localWorkSize1d[0] = BLOCK_SIZE*BLOCK_SIZE;
-
 					// Execute the POISSON_2_comp_res_kernel
 					status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_comp_res_kernel, 1,
 						NULL, globalWorkSize1d, localWorkSize1d, 0, NULL, &event);
@@ -1179,8 +1210,8 @@ int main(int argc, char *argv[])
 					clWaitForEvents(1, &event);
 
 					//TODO because of time dependencies above
-					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-						datasize, P_h, 0, NULL, NULL);
+					//status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//	datasize, P_h, 0, NULL, NULL);
 					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_TRUE, 0,
 						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
@@ -1190,14 +1221,16 @@ int main(int argc, char *argv[])
 
 					res = 0.0;
 
-					for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
+					for (int group_id = 0; group_id < NUM_WORKGROUPS-3; group_id++)
 					{
 						res += res_result_h[group_id];
 					}
+
+					memset(res_result_h, 0.0, NUM_WORKGROUPS*sizeof(REAL));
 #endif			
 					res = sqrt(res/ifull)/p0;
 
-					//printf("%d %f\n", iter, res);
+					
 
 					/* convergence? */
 					if (res < eps) {
@@ -1208,6 +1241,8 @@ int main(int argc, char *argv[])
 			}
 			
 		}
+
+		// End of SOR iteration
 
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
 			t_end, t+delt, delt, iter, res, ifull, isurf, ibound);  
@@ -1455,6 +1490,8 @@ int main(int argc, char *argv[])
 
 	start_cpu = clock();
 
+	res = 0.0;
+
 	/*
 	 * Main time loop
 	 */
@@ -1494,7 +1531,7 @@ int main(int argc, char *argv[])
 		/*-----------------------------------------------------------*/
 		if (ifull > 0) {
 			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
-			eps, itermax, omg, &res, ifull, p_bound);
+			eps, itermax, omg, &res, ifull, p_bound, log_file_cpu, cycle); //TODO changes for log
 		}
 
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
@@ -1705,6 +1742,9 @@ int main(int argc, char *argv[])
 	FREE_RMATRIX(HEAT,	0, imax,	0, jmax);
 	FREE_RMATRIX(RHS,	0, imax+1,	0, jmax+1);
 	FREE_IMATRIX(FLAG,	0, imax+1,	0, jmax+1);
+
+	fclose(log_file_cpu);
+	fclose(log_file_gpu);
 
 	printf("End of program\n");
 	return(0);

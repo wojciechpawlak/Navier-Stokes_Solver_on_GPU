@@ -231,7 +231,7 @@ void print_array_to_file(REAL** A, int m, int n, char* filename)
 
 	for (int r = 0; r < m; r++) {
 		for (int s = 0; s < n; s++) {
-			fprintf(fp, "%6.2f\t", A[r][s]);
+			fprintf(fp, "%f\t", A[r][s]);
 		}
 		fprintf(fp, "\n");
 	}
@@ -247,7 +247,7 @@ void print_1darray_to_file(REAL* A, int m, int n, char* filename)
 
 	for (int r = 0; r < m; r++) {
 		for (int s = 0; s < n; s++) {
-			fprintf(fp, "%6.2f\t", A[r*n+s]);
+			fprintf(fp, "%f\t", A[r*n+s]);
 		}
 		fprintf(fp, "\n");
 	}
