@@ -30,11 +30,14 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef PRINT
+	
 	FILE* log_file_cpu;
 	log_file_cpu = fopen("logCPU.txt", "w");
 	
 	FILE* log_file_gpu;
 	log_file_gpu = fopen("logGPU.txt", "w");
+#endif
 	
 	/*
 	 * Navier-Stokes Solver Initialization
@@ -818,10 +821,10 @@ int main(int argc, char *argv[])
 			REAL p0 = 0.0;
 			
 
-			for (int i = 1; i <= iimax-1; i++) {
-				for (int j = 1; j <= jjmax-1; j++) {
-					if (FLAG_h[i*jmax + j] & C_F) {
-						p0 += P_h[i*jmax + j]*P_h[i*jmax + j];
+			for (int i = 1; i <= iimax-2; i++) {
+				for (int j = 1; j <= jjmax-2; j++) {
+					if (FLAG_h[i*jjmax + j] & C_F) {
+						p0 += P_h[i*jjmax + j]*P_h[i*jjmax + j];
 					}
 				}
 			}
@@ -1164,12 +1167,9 @@ int main(int argc, char *argv[])
 										- RHS_h[i*jjmax + j];
 
 								res += add * add;
-								fprintf(log_file_gpu, "%d %d (%d,%d) %f\n", cycle, i, j, iter, res);
 							}
 						}
 					}		
-
-					
 
 #endif
 
@@ -1227,10 +1227,8 @@ int main(int argc, char *argv[])
 					}
 
 					memset(res_result_h, 0.0, NUM_WORKGROUPS*sizeof(REAL));
-#endif			
+#endif					
 					res = sqrt(res/ifull)/p0;
-
-					
 
 					/* convergence? */
 					if (res < eps) {
@@ -1531,7 +1529,7 @@ int main(int argc, char *argv[])
 		/*-----------------------------------------------------------*/
 		if (ifull > 0) {
 			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
-			eps, itermax, omg, &res, ifull, p_bound, log_file_cpu, cycle); //TODO changes for log
+			eps, itermax, omg, &res, ifull, p_bound);
 		}
 
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
@@ -1743,8 +1741,10 @@ int main(int argc, char *argv[])
 	FREE_RMATRIX(RHS,	0, imax+1,	0, jmax+1);
 	FREE_IMATRIX(FLAG,	0, imax+1,	0, jmax+1);
 
+#ifdef PRINT
 	fclose(log_file_cpu);
 	fclose(log_file_gpu);
+#endif
 
 	printf("End of program\n");
 	return(0);
