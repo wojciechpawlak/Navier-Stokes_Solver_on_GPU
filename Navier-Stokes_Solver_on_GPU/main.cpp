@@ -22,8 +22,7 @@
 #define CPU
 #define VERIFY
 //#define PRINT
-#define ON_CPU
-//#define ON_GPU
+
 #define ON_GPU_P0
 #define ON_CPU_1_RELAX
 #define ON_CPU_1_RES
@@ -862,6 +861,7 @@ int main(int argc, char *argv[])
 			}
 			clWaitForEvents(1, &event);
 
+			// Read the partial results from reduction kernel
 			status = clEnqueueReadBuffer(cmdQueue, p0_result_d, CL_TRUE, 0,
 				NUM_WORKGROUPS*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 			if (status != CL_SUCCESS) {
@@ -869,6 +869,7 @@ int main(int argc, char *argv[])
 				exit(-1);
 			}
 
+			// Compute the initial pressure value p0
 			for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
 			{
 				p0 += p0_result_h[group_id];
@@ -1012,6 +1013,7 @@ int main(int argc, char *argv[])
 					}
 
 				} else if (p_bound == 2) {
+
 #ifdef ON_CPU_2_COPY
 					//TODO because of time dependencies above
 					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
@@ -1124,14 +1126,6 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_GPU_2_RELAX
-					//TODO time dependencies
-					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
-					//	datasize, P_h, 0, NULL, NULL);
-					//if (status != CL_SUCCESS) {
-					//	printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-					//	exit(-1);
-					//}
-					
 					// Associate the input and output buffers with the POISSON_2_relaxation_kernel 
 					status = clSetKernelArg(POISSON_2_relaxation_kernel, 0, sizeof(cl_mem), &P_d);
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 1, sizeof(cl_mem), &RHS_d);
@@ -1153,21 +1147,11 @@ int main(int argc, char *argv[])
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-
 					clWaitForEvents(1, &event);
-
-					//TODO because of time dependencies above
-					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-						datasize, P_h, 0, NULL, NULL);
-					if (status != CL_SUCCESS) {
-						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-						exit(-1);
-					}
 #endif
 
 #ifdef ON_CPU_2_RES
-					/* computation of residual */
-					/*-------------------------*/
+
 					REAL add;
 
 					res = 0.0;
@@ -1187,6 +1171,9 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_GPU_2_RES
+					/* computation of residual */
+					/*-------------------------*/
+
 					status = clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
 						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
@@ -1194,7 +1181,6 @@ int main(int argc, char *argv[])
 						exit(-1);
 					}
 
-					//TODO reduction
 					// Associate the input and output buffers with the POISSON_2_comp_res_kernel 
 					status = clSetKernelArg(POISSON_2_comp_res_kernel, 0, sizeof(cl_mem), &P_d);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 1, sizeof(cl_mem), &RHS_d);
@@ -1219,6 +1205,7 @@ int main(int argc, char *argv[])
 					}
 					clWaitForEvents(1, &event);
 
+					// Read the partial results from reduction kernel
 					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_TRUE, 0,
 						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
@@ -1228,6 +1215,7 @@ int main(int argc, char *argv[])
 
 					res = 0.0;
 
+					// Compute residual from partial results
 					for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
 					{
 						res += res_result_h[group_id];
