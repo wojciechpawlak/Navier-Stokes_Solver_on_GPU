@@ -167,18 +167,41 @@ void POISSON_p0_kernel(	__global REAL *P,
 						__global int *FLAG,
 						int imax,
 						int jmax,
-						__global REAL *p0)
+						__global REAL *p0_result,
+						__local REAL *scratch)
 {
 	imax = imax + 2;
 	jmax = jmax + 2;
-	
-	int i = get_global_id(0);
-	int j = get_global_id(1);
 
+	unsigned int gid = get_global_id(0);
+	unsigned int tid = get_local_id(0);
+	
+	int i = gid / imax;
+	int j = gid % jmax;
+	
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 		if (FLAG[i*jmax + j] & C_F) {
-			*p0 += P[i*jmax + j]*P[i*jmax + j];
+			scratch[tid] = P[i*jmax + j]*P[i*jmax + j];
+		} else {
+			scratch[tid] = 0.0;
 		}
+	} else {
+		scratch[tid] = 0.0;
+	}
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	// do reduction in shared mem
+	for (unsigned int s = 1; s < get_local_size(0); s *= 2) {
+		// modulo arithmetic is slow!
+		if ((tid % (2*s)) == 0) {
+			scratch[tid] += scratch[tid + s];
+		}
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
+
+	if (tid == 0) {
+		p0_result[get_group_id(0)*get_num_groups(1) + get_group_id(1)] = scratch[0];
 	}
 }
 
@@ -352,8 +375,8 @@ void POISSON_2_comp_res_kernel(	__global REAL *P,
 	int i = gid / imax;
 	int j = gid % jmax;
 
-	int ti = tid / imax;
-	int tj = tid % jmax;
+	//int ti = tid / imax;
+	//int tj = tid % jmax;
 
 	//int j = get_global_id(1);
 

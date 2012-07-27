@@ -24,9 +24,12 @@
 //#define PRINT
 #define ON_CPU
 //#define ON_GPU
-#define ON_CPU_COPY
-#define ON_CPU_RELAX
-#define ON_CPU_RES
+#define ON_GPU_P0
+#define ON_CPU_1_RELAX
+#define ON_CPU_1_RES
+#define ON_GPU_2_COPY
+#define ON_CPU_2_RELAX
+#define ON_GPU_2_RES
 
 int main(int argc, char *argv[])
 {
@@ -308,6 +311,7 @@ int main(int argc, char *argv[])
 	cl_mem G_d;
 	cl_mem RHS_d;
 	cl_mem P_d;
+	cl_mem p0_result_d;
 	cl_mem res_result_d;
 	// Allocate memory for data on device
 	
@@ -383,7 +387,17 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	// Create a buffer object (res_result) for residual computation partial results
+	// Create a buffer object for vector of partial results
+	// for initial pressure value computation
+	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+		NUM_WORKGROUPS*sizeof(REAL), NULL, &status);
+	if (status != CL_SUCCESS || p0_result_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object for vector of partial results
+	// for residual computation
 	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
 		NUM_WORKGROUPS*sizeof(REAL), NULL, &status);
 	if (status != CL_SUCCESS || res_result_d == NULL) {
@@ -391,10 +405,12 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
+
+
 	// Allocate memory for host buffers for GPU execution
 	int *FLAG_h;
 	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h, *RHS_h, *P_h;
-	REAL *res_result_h;
+	REAL *p0_result_h, *res_result_h;
 
 	FLAG_h	= (int *) malloc(datasize_int);
 	
@@ -405,8 +421,10 @@ int main(int argc, char *argv[])
 	G_h		= (REAL *) malloc(datasize);
 	RHS_h	= (REAL *) malloc(datasize);
 	P_h		= (REAL *) malloc(datasize);
+	p0_result_h = (REAL *) malloc(NUM_WORKGROUPS*sizeof(REAL));
 	res_result_h = (REAL *) malloc(NUM_WORKGROUPS*sizeof(REAL));
 
+	//TODO initialize them seperately
 	// Copy initial contents for host buffers from original arrays
 	copy_array_int_2d_to_1d(FLAG,	FLAG_h, imax+2, jmax+2);
 
@@ -414,7 +432,7 @@ int main(int argc, char *argv[])
 	copy_array_real_2d_to_1d(V,		V_h,	imax+2, jmax+2);
 	copy_array_real_2d_to_1d(TEMP,	TEMP_h, imax+2, jmax+2);
 	copy_array_real_2d_to_1d(P,		P_h,	imax+2, jmax+2);
-	
+
 
 
 	REAL **PSI_h, **ZETA_h, **HEAT_h;
@@ -504,7 +522,7 @@ int main(int argc, char *argv[])
 	cl_kernel TEMP_kernel = NULL;
 	cl_kernel FG_kernel = NULL;
 	cl_kernel RHS_kernel = NULL;
-	//cl_kernel POISSON_p0_kernel = NULL;
+	cl_kernel POISSON_p0_kernel = NULL;
 	//cl_kernel POISSON_1_relaxation_kernel = NULL;
 	//cl_kernel POISSON_1_comp_res_kernel = NULL;
 	cl_kernel POISSON_2_copy_boundary_kernel = NULL;
@@ -537,11 +555,11 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a kernel for computation of initial pressure values for pressure P
-	//POISSON_p0_kernel = clCreateKernel(program, "POISSON_p0_kernel", &status);
-	//if (status != CL_SUCCESS) {
-	//	printf("clCreateKernel failed: %s\n", cluErrorString(status));
-	//	exit(-1);
-	//}
+	POISSON_p0_kernel = clCreateKernel(program, "POISSON_p0_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
 
 	// Create a kernel for relaxation for pressure P (method 2)
 	//POISSON_1_relaxation_kernel = clCreateKernel(program, "POISSON_1_relaxation_kernel", &status);
@@ -619,6 +637,8 @@ int main(int argc, char *argv[])
 	size_t localWorkSize1d[] = {BLOCK_SIZE * BLOCK_SIZE};
 
 	size_t globalWorkSize1d[] = {getGlobalSize(BLOCK_SIZE, imax) * getGlobalSize(BLOCK_SIZE, jmax)};
+
+
 
 	start_gpu = clock();
 
@@ -801,17 +821,6 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 
-#ifdef ON_GPU
-
-		//TODO because of dependencies above
-		status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
-			datasize, P_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-#endif
 		int iter;
 
 		if (ifull > 0) {
@@ -819,8 +828,8 @@ int main(int argc, char *argv[])
 			int jjmax = jmax + 2;
 
 			REAL p0 = 0.0;
-			
 
+#ifdef ON_CPU_P0
 			for (int i = 1; i <= iimax-2; i++) {
 				for (int j = 1; j <= jjmax-2; j++) {
 					if (FLAG_h[i*jjmax + j] & C_F) {
@@ -828,26 +837,43 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
+#endif
+
+#ifdef ON_GPU_P0
 			
-			//TODO reduction
-			//// Associate the input and output buffers with the POISSON_p0_kernel
-			//status = clSetKernelArg(POISSON_p0_kernel, 0, sizeof(cl_mem), &P_d);
-			//status |= clSetKernelArg(POISSON_p0_kernel, 1, sizeof(cl_mem), &FLAG_d);
-			//status |= clSetKernelArg(POISSON_p0_kernel, 2, sizeof(int), &imax);
-			//status |= clSetKernelArg(POISSON_p0_kernel, 3, sizeof(int), &jmax);
-			//status |= clSetKernelArg(POISSON_p0_kernel, 4, sizeof(REAL), &p0);
-			//if (status != CL_SUCCESS) {
-			//	printf("clSetKernelArg failed: %s\n", cluErrorString(status));
-			//	exit(-1);
-			//}
+			// Associate the input and output buffers with the POISSON_p0_kernel
+			status = clSetKernelArg(POISSON_p0_kernel, 0, sizeof(cl_mem), &P_d);
+			status |= clSetKernelArg(POISSON_p0_kernel, 1, sizeof(cl_mem), &FLAG_d);
+			status |= clSetKernelArg(POISSON_p0_kernel, 2, sizeof(int), &imax);
+			status |= clSetKernelArg(POISSON_p0_kernel, 3, sizeof(int), &jmax);
+			status |= clSetKernelArg(POISSON_p0_kernel, 4, sizeof(cl_mem), &p0_result_d);
+			status |= clSetKernelArg(POISSON_p0_kernel, 5, sizeof(REAL)*globalWorkSize1d[0], NULL);
+			if (status != CL_SUCCESS) {
+				printf("clSetKernelArg failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
 
 			//// Execute the POISSON_p0_kernel kernel
-			//status = clEnqueueNDRangeKernel(cmdQueue, POISSON_p0_kernel, 2,
-			//	NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
-			//if(status != CL_SUCCESS) {
-			//	printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
-			//	exit(-1);
-			//}
+			status = clEnqueueNDRangeKernel(cmdQueue, POISSON_p0_kernel, 1,
+				NULL, globalWorkSize1d, localWorkSize1d, 0, NULL, &event);
+			if(status != CL_SUCCESS) {
+				printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+			clWaitForEvents(1, &event);
+
+			status = clEnqueueReadBuffer(cmdQueue, p0_result_d, CL_TRUE, 0,
+				NUM_WORKGROUPS*sizeof(REAL), p0_result_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
+			{
+				p0 += p0_result_h[group_id];
+			}
+#endif
 
 			p0 = sqrt(p0/ifull);
 			if (p0 < 0.0001)
@@ -862,7 +888,7 @@ int main(int argc, char *argv[])
 			for (iter = 1; iter <= itermax; iter++) {	
 				if (p_bound == 1) {
 
-#ifdef ON_CPU
+#ifdef ON_CPU_1_RELAX
 					REAL beta_2, beta_mod;
 					
 					beta_2 = -omg/(2.0*(rdx2+rdy2));
@@ -887,6 +913,8 @@ int main(int argc, char *argv[])
 					}
 
 #endif
+
+#ifdef ON_GPU_1_RELAX
 
 					//TODO time dependencies
 					/* relaxation for fluid cells */
@@ -914,8 +942,9 @@ int main(int argc, char *argv[])
 					//}
 
 					//clWaitForEvents(1, &event);
+#endif
 
-#ifdef ON_CPU
+#ifdef ON_CPU_1_RES
 
 					/* computation of residual */
 					/*-------------------------*/
@@ -939,6 +968,8 @@ int main(int argc, char *argv[])
 					}
 
 #endif
+
+#ifdef ON_GPU_1_RES
 
 					//TODO because of dependencies above
 					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
@@ -971,6 +1002,7 @@ int main(int argc, char *argv[])
 					//}
 
 					//clWaitForEvents(1, &event);
+#endif
 
 					res = sqrt(res/ifull)/p0;
 
@@ -980,10 +1012,7 @@ int main(int argc, char *argv[])
 					}
 
 				} else if (p_bound == 2) {
-
-
-					
-#ifdef ON_CPU_COPY
+#ifdef ON_CPU_2_COPY
 					//TODO because of time dependencies above
 					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
 						datasize, P_h, 0, NULL, NULL);
@@ -1031,16 +1060,9 @@ int main(int argc, char *argv[])
 					}
 #endif
 
-#ifdef ON_GPU_COPY
-					//TODO time dependencies
+#ifdef ON_GPU_2_COPY
 					/* copy values at external and interior boundary cells	*/
 					/*------------------------------------------------------*/
-					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
-					//	datasize, P_h, 0, NULL, NULL);
-					//if (status != CL_SUCCESS) {
-					//	printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-					//	exit(-1);
-					//}
 					
 					// Associate the input and output buffers with the POISSON_p0_kernel
 					status = clSetKernelArg(POISSON_2_copy_boundary_kernel, 0, sizeof(cl_mem), &P_d);
@@ -1059,19 +1081,10 @@ int main(int argc, char *argv[])
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-
 					clWaitForEvents(1, &event);
-
-					//TODO because of time dependencies above
-					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-						datasize, P_h, 0, NULL, NULL);
-					if (status != CL_SUCCESS) {
-						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-						exit(-1);
-					}
 #endif
 
-#ifdef ON_CPU_RELAX					
+#ifdef ON_CPU_2_RELAX					
 					status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
@@ -1110,7 +1123,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#ifdef ON_GPU_RELAX
+#ifdef ON_GPU_2_RELAX
 					//TODO time dependencies
 					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 					//	datasize, P_h, 0, NULL, NULL);
@@ -1152,7 +1165,7 @@ int main(int argc, char *argv[])
 					}
 #endif
 
-#ifdef ON_CPU_RES
+#ifdef ON_CPU_2_RES
 					/* computation of residual */
 					/*-------------------------*/
 					REAL add;
@@ -1173,7 +1186,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#ifdef ON_GPU_RES
+#ifdef ON_GPU_2_RES
 					status = clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
 						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
@@ -1191,9 +1204,7 @@ int main(int argc, char *argv[])
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &delx);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &dely);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(cl_mem), &res_result_d);
-					//status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(cl_mem), &results_d);
-					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(REAL)*64*64, NULL);
-
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(REAL)*globalWorkSize1d[0], NULL);
 					if (status != CL_SUCCESS) {
 						printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 						exit(-1);
@@ -1206,12 +1217,8 @@ int main(int argc, char *argv[])
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-
 					clWaitForEvents(1, &event);
 
-					//TODO because of time dependencies above
-					//status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-					//	datasize, P_h, 0, NULL, NULL);
 					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_TRUE, 0,
 						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
@@ -1221,16 +1228,14 @@ int main(int argc, char *argv[])
 
 					res = 0.0;
 
-					for (int group_id = 0; group_id < NUM_WORKGROUPS-3; group_id++)
+					for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
 					{
 						res += res_result_h[group_id];
 					}
-
-					memset(res_result_h, 0.0, NUM_WORKGROUPS*sizeof(REAL));
 #endif					
 					res = sqrt(res/ifull)/p0;
 
-					/* convergence? */
+					// convergence?
 					if (res < eps) {
 						break;
 					}
@@ -1248,18 +1253,6 @@ int main(int argc, char *argv[])
 		/* Compute the new velocity field */
 		/*--------------------------------*/
 
-#ifdef ON_CPU
-
-		//TODO because of time dependencies in POISSON
-		status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
-			datasize, P_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-#endif
-
 		// Associate the input and output buffers with the ADAP_UV_kernel 
 		status = clSetKernelArg(ADAP_UV_kernel, 0, sizeof(cl_mem), &U_d);
 		status |= clSetKernelArg(ADAP_UV_kernel, 1, sizeof(cl_mem), &V_d);
@@ -1272,7 +1265,6 @@ int main(int argc, char *argv[])
 		status |= clSetKernelArg(ADAP_UV_kernel, 8, sizeof(REAL), &delt);
 		status |= clSetKernelArg(ADAP_UV_kernel, 9, sizeof(REAL), &delx);
 		status |= clSetKernelArg(ADAP_UV_kernel, 10, sizeof(REAL), &dely);
-
 		if (status != CL_SUCCESS) {
 			printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 			exit(-1);
@@ -1285,6 +1277,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
+		clWaitForEvents(1, &event);
 
 		/* Set boundary conditions */
 		/*-------------------------*/
@@ -1300,7 +1293,6 @@ int main(int argc, char *argv[])
 		status |= clSetKernelArg(SETBCOND_outer_kernel, 7, sizeof(int), &wE);
 		status |= clSetKernelArg(SETBCOND_outer_kernel, 8, sizeof(int), &wN);
 		status |= clSetKernelArg(SETBCOND_outer_kernel, 9, sizeof(int), &wS);
-
 		if (status != CL_SUCCESS) {
 			printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 			exit(-1);
@@ -1313,7 +1305,6 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
 		clWaitForEvents(1, &event);
 
 		// Associate the input and output buffers with the SETBCOND_inner_kernel 
@@ -1323,7 +1314,6 @@ int main(int argc, char *argv[])
 		status |= clSetKernelArg(SETBCOND_inner_kernel, 3, sizeof(cl_mem), &FLAG_d);
 		status |= clSetKernelArg(SETBCOND_inner_kernel, 4, sizeof(int), &imax);
 		status |= clSetKernelArg(SETBCOND_inner_kernel, 5, sizeof(int), &jmax);
-
 		if (status != CL_SUCCESS) {
 			printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 			exit(-1);
@@ -1336,7 +1326,6 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
 		clWaitForEvents(1, &event);
 
 		/* Set special boundary conditions */
@@ -1353,7 +1342,6 @@ int main(int argc, char *argv[])
 		status |= clSetKernelArg(SETSPECBCOND_kernel, 5, sizeof(int), &jmax);
 		status |= clSetKernelArg(SETSPECBCOND_kernel, 6, sizeof(REAL), &UI);
 		status |= clSetKernelArg(SETSPECBCOND_kernel, 7, sizeof(REAL), &VI);
-
 		if (status != CL_SUCCESS) {
 			printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 			exit(-1);
@@ -1366,7 +1354,6 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
 		clWaitForEvents(1, &event);
 
 		//TODO other problems than dcav
