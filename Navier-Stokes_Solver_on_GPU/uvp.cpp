@@ -272,6 +272,8 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 				}
 			}
 
+			//print_array_to_file(P, imax+2, jmax+2, "P.txt");
+
 			/* computation of residual */
 			/*-------------------------*/
 			*res = 0.0;

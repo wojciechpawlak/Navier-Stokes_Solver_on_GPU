@@ -21,7 +21,7 @@ void COMP_TEMP_kernel(	__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
+	int i = get_global_id(0); //TODO swap
 	int j = get_global_id(1);
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
@@ -323,6 +323,8 @@ void POISSON_2_copy_boundary_kernel(__global REAL *P,
 			
 }
 
+//TODO It is impossible to implement this kernel without changing the algorithm.
+// No synchronization between workgroups possible
 __kernel
 void POISSON_2_relaxation_kernel(	__global REAL *P,
 									__global REAL *RHS,
@@ -331,28 +333,141 @@ void POISSON_2_relaxation_kernel(	__global REAL *P,
 									int jmax,
 									REAL delx,
 									REAL dely,
-									REAL omg)
+									REAL omg,
+									__local REAL *shared)
 {
-	imax = imax + 2;
-	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
-
-	REAL rdx2, rdy2;
-	REAL beta_2;
-
-	rdx2 = 1./delx/delx;
-	rdy2 = 1./dely/dely;
-	beta_2 = -omg/(2.0*(rdx2+rdy2));
-	
-	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {	
-		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
-			P[i*jmax + j] = (1.-omg)*P[i*jmax + j] - 
-				beta_2*((P[(i+1)*jmax + j]+P[(i-1)*jmax + j])*rdx2 +
-				(P[i*jmax + j+1]+P[i*jmax + j-1])*rdy2 - RHS[i*jmax + j]);
-		}
-	}
+//	int xmax = imax + 2;
+//	int ymax = jmax + 2;
+//
+//	int x = get_global_id(0);
+//	int y = get_global_id(1);
+//	int gid = y * xmax + x;
+//
+//	int tx = get_local_id(0);
+//	int ty = get_local_id(1);
+//
+//	REAL rdx2, rdy2;
+//	REAL beta_2;
+//
+//	rdx2 = 1./delx/delx;
+//	rdy2 = 1./dely/dely;
+//	beta_2 = -omg/(2.0*(rdx2+rdy2));
+//	
+//	__local REAL a[16][16][3];
+//
+//	int num_groups_y = get_num_groups(1);
+//	int local_size_y = get_local_size(1);
+//	int group_id_y = get_group_id(1);
+//
+//	int current_y, current_group = 2;
+//	if ((x > 0 && x < xmax - 1) && (y > 0 && y < ymax - 1)) {
+//		if ((FLAG[gid] & C_F) && (FLAG[gid] < 0x0100)) {
+//			//for (current_group = 0; current_group < num_groups_y; current_group++) {
+//				if (group_id_y == current_group) {
+//					for (current_y = 0; current_y < local_size_y; current_y++) {
+//						if (current_y == ty) {
+//							P[gid] = P[(y-1)*xmax + x] + 1 + P[(y+1)*xmax + x];
+//						}
+//						barrier(CLK_GLOBAL_MEM_FENCE);
+//						
+//					}
+//					barrier(CLK_GLOBAL_MEM_FENCE);
+//					if (current_y == local_size_y)
+//						current_group++;
+//				} 
+//				//mem_fence(CLK_GLOBAL_MEM_FENCE);
+//			//}
+//		}
+//	}
+//
+//	//		int current_y, current_group;
+//	//if ((x > 0 && x < xmax - 1) && (y > 0 && y < ymax - 1)) {
+//	//	if ((FLAG[gid] & C_F) && (FLAG[gid] < 0x0100)) {
+//	//		for (current_group = 0; current_group < get_num_groups(1); current_group++) {
+//	//			if (current_group == get_group_id(1)) {
+//	//				for (current_y = 0; current_y < get_local_size(1); current_y++) {
+//	//				//if ((tx > 0 && tx < (get_local_size(0) - 1)) && (ty > 0 && ty < (get_local_size(1) - 1))) {
+//	//					if (current_y == ty && ) {
+//
+//	//						//a[ty][tx][0] = P[(y-1)*xmax + x];
+//	//						//a[ty][tx][1] = 1;
+//	//						//a[ty][tx][2] = P[(y+1)*xmax + x];
+//	//		
+//	//						//barrier(CLK_LOCAL_MEM_FENCE);
+//
+//	//						//P[gid] = a[ty][tx][1] + a[ty][tx][2]+ a[ty][tx][0];
+//	//						P[gid] = P[(y-1)*xmax + x] + 1 + P[(y+1)*xmax + x];
+//
+//	//						//P[gid] = (1.-omg)*a[ty][tx][1] - 
+//	//						//	beta_2*((a[ty][tx][2]+a[ty][tx][0])*rdx2 +
+//	//						//	(a[ty][tx+1][1]+a[ty][tx-1][1])*rdy2 - RHS[gid]);
+//	//						//P[gid] = 1;
+//	//						//barrier(CLK_GLOBAL_MEM_FENCE);
+//	//					}
+//	//					barrier(CLK_GLOBAL_MEM_FENCE);
+//	//			}
+//	//			barrier(CLK_GLOBAL_MEM_FENCE);
+//	//				//}
+//	//				//barrier(CLK_LOCAL_MEM_FENCE);
+//	//		}
+//	//	}
+//	//}
+//
+//
+//	//if (y==0) {
+//	//if (/*(x > 0 && x < xmax - 1) && */(/*y > 0 &&*/ y < ymax - 1)) {	
+//		//if ((FLAG[gid] & C_F) && (FLAG[gid] < 0x0100)) {
+//			//for (current_y = 0; current_y < get_global_size(1); current_y++) {
+//
+//				//if (current_y == ty) {
+//					//a[ty][tx][0] = P[(y-1)*xmax + x];
+//					//a[ty][tx][1] = P[y*xmax + x];
+//					//a[ty][tx][2] = P[(y+1)*xmax + x];
+//
+//					//barrier(CLK_LOCAL_MEM_FENCE);
+//
+//					//P[gid] = gid /*a[current_y][tx][1] + a[current_y][tx][2] +a[current_y][tx][0]*/;
+//
+//					//P[gid] = (1.-omg)*a[current_y][tx][1] - 
+//					//	beta_2*((a[current_y][tx][2]+a[current_y][tx][0])*rdx2 +
+//					//	(a[current_y][tx+1][1]+a[current_y][tx-1][1])*rdy2 - RHS[gid]);
+//
+//					//barrier(CLK_LOCAL_MEM_FENCE);
+//				//}
+//				//barrier(CLK_LOCAL_MEM_FENCE);
+//			//}
+//		//}
+//	//} else {
+//	//	a[ty][tx][0] = 0.0;
+//	//	a[ty][tx][1] = P[y*xmax + x];
+//	//	a[ty][tx][2] = P[(y+1)*xmax + x];
+//	//}
+//
+//		//P[i*jmax + j] = (1.-omg)*P[i*jmax + j] - 
+//	//beta_2*((P[(i+1)*jmax + j]+P[(i-1)*jmax + j])*rdx2 +
+//	//(P[i*jmax + j+1]+P[i*jmax + j-1])*rdy2 - RHS[i*jmax + j]);
+//
+//	//if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {	
+//	//	if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+//	//		for (group_id = 0; group_id < get_global_size(0); group_id += 16) {
+//	//			liid = group_id*get_local_size(0)+ti;
+//	//			ljid = group_id*get_local_size(1)+tj;
+//
+//	//			a[ti][tj][0] = P[(liid-1)*jmax + ljid];
+//	//			a[ti][tj][1] = P[liid*jmax + ljid];
+//	//			a[ti][tj][2] = P[(liid+1)*jmax + ljid];
+//
+//	//			barrier(CLK_LOCAL_MEM_FENCE);
+//
+//	//			//P[liid*jmax + ljid] = (1.-omg)*a[ti][tj][1] - 
+//	//			//	beta_2*((a[ti][tj][2]+a[ti][tj][0])*rdx2 +
+//	//			//	(a[ti][tj+1][0]+a[liid][tj-1][0])*rdy2 - RHS[liid*jmax + ljid]);
+//	//	
+//	//			barrier(CLK_LOCAL_MEM_FENCE);
+//	//		}
+//	//	}
+//	//}
 }
 
 __kernel
@@ -366,6 +481,8 @@ void POISSON_2_comp_res_kernel(	__global REAL *P,
 								__global REAL *res_result,
 								__local REAL *scratch)
 {
+	//TODO kernel with atom_inc for __global res value
+	
 	imax = imax + 2; // imax == get_global_size(0)
 	jmax = jmax + 2; // jmax == get_global_size(1)
 

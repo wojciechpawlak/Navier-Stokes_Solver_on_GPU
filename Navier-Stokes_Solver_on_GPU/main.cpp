@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
 	cl_device_id *devices = NULL;
 
 	// Retrive the number of devices present
-	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, // CL_DEVICE_TYPE_ALL
+	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, //TODO CL_DEVICE_TYPE_ALL
 		0, NULL, &numDevices);						
 	if (status != CL_SUCCESS) {
 		printf("clGetDeviceIDs failed: %s\n", cluErrorString(status));
@@ -874,6 +874,8 @@ int main(int argc, char *argv[])
 			{
 				p0 += p0_result_h[group_id];
 			}
+
+
 #endif
 
 			p0 = sqrt(p0/ifull);
@@ -1084,6 +1086,8 @@ int main(int argc, char *argv[])
 						exit(-1);
 					}
 					clWaitForEvents(1, &event);
+
+
 #endif
 
 #ifdef ON_CPU_2_RELAX					
@@ -1125,7 +1129,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#ifdef ON_GPU_2_RELAX
+#ifdef ON_GPU_2_RELAX		
 					// Associate the input and output buffers with the POISSON_2_relaxation_kernel 
 					status = clSetKernelArg(POISSON_2_relaxation_kernel, 0, sizeof(cl_mem), &P_d);
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 1, sizeof(cl_mem), &RHS_d);
@@ -1135,6 +1139,7 @@ int main(int argc, char *argv[])
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 5, sizeof(REAL), &delx);
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 6, sizeof(REAL), &dely);
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 7, sizeof(REAL), &omg);
+					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 8, sizeof(REAL)*globalWorkSize1d[0], NULL);
 					if (status != CL_SUCCESS) {
 						printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 						exit(-1);
@@ -1148,6 +1153,14 @@ int main(int argc, char *argv[])
 						exit(-1);
 					}
 					clWaitForEvents(1, &event);
+
+					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
+					//print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_after.txt");
 #endif
 
 #ifdef ON_CPU_2_RES
@@ -1675,6 +1688,7 @@ int main(int argc, char *argv[])
 	clReleaseMemObject(F_d);
 	clReleaseMemObject(G_d);
 	clReleaseMemObject(P_d);
+	clReleaseMemObject(p0_result_d);
 	clReleaseMemObject(res_result_d);
 
 	clReleaseKernel(FG_kernel);
@@ -1693,6 +1707,7 @@ int main(int argc, char *argv[])
 	free(G_h);
 	free(RHS_h);
 	free(P_h);
+	free(p0_result_h);
 	free(res_result_h);
 
 	FREE_RMATRIX(PSI_h,		0, imax,	0, jmax);
