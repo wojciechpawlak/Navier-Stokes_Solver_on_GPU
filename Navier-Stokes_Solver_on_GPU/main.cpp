@@ -672,6 +672,9 @@ int main(int argc, char *argv[])
 	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 		datasize, P_h, 0, NULL, NULL);
 	
+	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_FALSE, 0, 
+		NUM_WORKGROUPS*sizeof(REAL), p0_result_h, 0, NULL, NULL);
+
 	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
 		NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 
@@ -846,7 +849,7 @@ int main(int argc, char *argv[])
 			status |= clSetKernelArg(POISSON_p0_kernel, 2, sizeof(int), &imax);
 			status |= clSetKernelArg(POISSON_p0_kernel, 3, sizeof(int), &jmax);
 			status |= clSetKernelArg(POISSON_p0_kernel, 4, sizeof(cl_mem), &p0_result_d);
-			status |= clSetKernelArg(POISSON_p0_kernel, 5, sizeof(REAL)*globalWorkSize1d[0], NULL);
+			status |= clSetKernelArg(POISSON_p0_kernel, 5, sizeof(REAL)*localWorkSize1d[0], NULL);
 			if (status != CL_SUCCESS) {
 				printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 				exit(-1);
@@ -1187,13 +1190,6 @@ int main(int argc, char *argv[])
 					/* computation of residual */
 					/*-------------------------*/
 
-					status = clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
-						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
-					if (status != CL_SUCCESS) {
-						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-						exit(-1);
-					}
-
 					// Associate the input and output buffers with the POISSON_2_comp_res_kernel 
 					status = clSetKernelArg(POISSON_2_comp_res_kernel, 0, sizeof(cl_mem), &P_d);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 1, sizeof(cl_mem), &RHS_d);
@@ -1203,7 +1199,7 @@ int main(int argc, char *argv[])
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &delx);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &dely);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(cl_mem), &res_result_d);
-					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(REAL)*globalWorkSize1d[0], NULL);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(REAL)*localWorkSize1d[0], NULL);
 					if (status != CL_SUCCESS) {
 						printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 						exit(-1);

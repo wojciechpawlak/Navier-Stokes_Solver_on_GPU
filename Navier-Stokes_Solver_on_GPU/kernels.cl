@@ -1,4 +1,4 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable 
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable 
 #include "datadef.h"
 
 __kernel
@@ -21,8 +21,8 @@ void COMP_TEMP_kernel(	__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0); //TODO swap
-	int j = get_global_id(1);
+	int i = get_global_id(1); //TODO swap
+	int j = get_global_id(0);
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 		if ( (FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < C_E) ) {
@@ -68,8 +68,8 @@ void COMP_FG_kernel(__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
@@ -150,8 +150,8 @@ void COMP_RHS_kernel(	__global REAL *F,
 	imax = imax + 2;
 	jmax = jmax + 2;
 	
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
@@ -291,8 +291,8 @@ void POISSON_2_copy_boundary_kernel(__global REAL *P,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 
 	/* copy values at external boundary */
 	/*----------------------------------*/
@@ -489,8 +489,8 @@ void POISSON_2_comp_res_kernel(	__global REAL *P,
 	unsigned int gid = get_global_id(0);
 	unsigned int tid = get_local_id(0);
 	
-	int i = gid / imax;
-	int j = gid % jmax;
+	int i = gid % imax;
+	int j = gid / jmax;
 
 	//int ti = tid / imax;
 	//int tj = tid % jmax;
@@ -564,8 +564,8 @@ void ADAP_UV_kernel(__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 
 	if ((i > 0 && i < imax - 2) && (j > 0 && j < jmax - 1)) { // imax - 2
 		// only if both adjacent cells are fluid cells
@@ -602,8 +602,8 @@ void SETBCOND_outer_kernel(__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 	
 	if ((i >= 0 && i <= imax - 1) && (j >= 0 && j <= jmax - 1)) { // TODO important
 
@@ -700,8 +700,8 @@ void SETBCOND_inner_kernel(__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 		if (FLAG[i*jmax + j] & 0x000f) {
@@ -788,8 +788,8 @@ void SETSPECBCOND_kernel(	/*char* problem,*/ //TODO should run with every proble
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(0);
-	int j = get_global_id(1);
+	int i = get_global_id(1);
+	int j = get_global_id(0);
 
 	//if ((strcmp(problem, "drop") == 0) || (strcmp(problem, "dam") == 0)) {
 
