@@ -22,17 +22,23 @@
 #define CPU
 #define VERIFY
 //#define PRINT
+#define LOG
 
-#define ON_GPU_P0
+#define ON_CPU_P0
 #define ON_CPU_1_RELAX
 #define ON_CPU_1_RES
-#define ON_GPU_2_COPY
+#define ON_CPU_2_COPY
 #define ON_CPU_2_RELAX
-#define ON_GPU_2_RES
+#define ON_CPU_2_RES
+
+#define ON_CPU_BCOND
+
+#define TIME_WITH_MEM
+//#define TIME_WITHOUT_MEM
 
 int main(int argc, char *argv[])
 {
-#ifdef PRINT
+#ifdef LOG
 	
 	FILE* log_file_cpu;
 	log_file_cpu = fopen("logCPU.txt", "w");
@@ -300,112 +306,6 @@ int main(int argc, char *argv[])
 
 
 
-	// Input and Output arrays on the device
-	cl_mem U_d;
-	cl_mem V_d;
-	cl_mem FLAG_d;
-	cl_mem TEMP_d;
-	cl_mem TEMP_new_d;
-	cl_mem F_d;
-	cl_mem G_d;
-	cl_mem RHS_d;
-	cl_mem P_d;
-	cl_mem p0_result_d;
-	cl_mem res_result_d;
-	// Allocate memory for data on device
-	
-	// Create a buffer object (U_d)
-	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || U_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (V_d)
-	V_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || V_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (FLAG_d)
-	FLAG_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
-		datasize_int, NULL, &status);
-	if (status != CL_SUCCESS || FLAG_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (TEMP_d)
-	TEMP_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || TEMP_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (TEMP_new_d)
-	TEMP_new_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || TEMP_new_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (F_d)
-	F_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || F_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (G_d)
-	G_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || G_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (RHS_d)
-	RHS_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || RHS_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object (P_d)
-	P_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		datasize, NULL, &status);
-	if (status != CL_SUCCESS || P_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object for vector of partial results
-	// for initial pressure value computation
-	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-		NUM_WORKGROUPS*sizeof(REAL), NULL, &status);
-	if (status != CL_SUCCESS || p0_result_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-	// Create a buffer object for vector of partial results
-	// for residual computation
-	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-		NUM_WORKGROUPS*sizeof(REAL), NULL, &status);
-	if (status != CL_SUCCESS || res_result_d == NULL) {
-		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
-		exit(-1);
-	}
-
-
-
 	// Allocate memory for host buffers for GPU execution
 	int *FLAG_h;
 	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h, *RHS_h, *P_h;
@@ -432,7 +332,7 @@ int main(int argc, char *argv[])
 	copy_array_real_2d_to_1d(TEMP,	TEMP_h, imax+2, jmax+2);
 	copy_array_real_2d_to_1d(P,		P_h,	imax+2, jmax+2);
 
-
+	// does not need to copy values to F_h, G_h, RHS_h, because they are raw
 
 	REAL **PSI_h, **ZETA_h, **HEAT_h;
 
@@ -443,6 +343,112 @@ int main(int argc, char *argv[])
 	copy_array_real(PSI,	PSI_h,	imax+1,	jmax+1);
 	copy_array_real(ZETA,	ZETA_h, imax-1, jmax-1);
 	copy_array_real(HEAT,	HEAT_h, imax+1,	jmax+1);
+
+
+
+	// Input and Output arrays on the device
+	cl_mem U_d;
+	cl_mem V_d;
+	cl_mem FLAG_d;
+	cl_mem TEMP_d;
+	cl_mem TEMP_new_d;
+	cl_mem F_d;
+	cl_mem G_d;
+	cl_mem RHS_d;
+	cl_mem P_d;
+	cl_mem p0_result_d;
+	cl_mem res_result_d;
+	// Allocate memory for data on device
+
+	// Create a buffer object (U_d)
+	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		datasize, U_h, &status);
+	if (status != CL_SUCCESS || U_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (V_d)
+	V_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		datasize, V_h, &status);
+	if (status != CL_SUCCESS || V_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (FLAG_d)
+	FLAG_d = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
+		datasize_int, FLAG_h, &status);
+	if (status != CL_SUCCESS || FLAG_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (TEMP_d)
+	TEMP_d = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
+		datasize, TEMP_h, &status);
+	if (status != CL_SUCCESS || TEMP_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (TEMP_new_d)
+	TEMP_new_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+		datasize, NULL, &status);
+	if (status != CL_SUCCESS || TEMP_new_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (F_d)
+	F_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		datasize, F_h, &status);
+	if (status != CL_SUCCESS || F_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (G_d)
+	G_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		datasize, G_h, &status);
+	if (status != CL_SUCCESS || G_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (RHS_d)
+	RHS_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		datasize, RHS_h, &status);
+	if (status != CL_SUCCESS || RHS_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object (P_d)
+	P_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		datasize, P_h, &status);
+	if (status != CL_SUCCESS || P_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object for vector of partial results
+	// for initial pressure value computation
+	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
+		NUM_WORKGROUPS*sizeof(REAL), p0_result_h, &status);
+	if (status != CL_SUCCESS || p0_result_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+
+	// Create a buffer object for vector of partial results
+	// for residual computation
+	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
+		NUM_WORKGROUPS*sizeof(REAL), res_result_h, &status);
+	if (status != CL_SUCCESS || res_result_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
 
 	//-----------------------------------------------------
 	// STEP 7: Create and compile the program
@@ -645,37 +651,37 @@ int main(int argc, char *argv[])
 	// STEP 6: Write host data to device buffers
 	//----------------------------------------------------- 
 
-	status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_FALSE, 0, 
+	status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_TRUE, 0, 
 		datasize_int, FLAG_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, U_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, U_d, CL_TRUE, 0, 
 		datasize, U_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, V_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, V_d, CL_TRUE, 0, 
 		datasize, V_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_TRUE, 0, 
 		datasize, TEMP_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
 		datasize, TEMP_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_TRUE, 0, 
 		datasize, F_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_TRUE, 0, 
 		datasize, G_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_TRUE, 0, 
 		datasize, RHS_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
 		datasize, P_h, 0, NULL, NULL);
 	
-	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_TRUE, 0, 
 		NUM_WORKGROUPS*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
 		NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
 
 	if (status != CL_SUCCESS) {
@@ -706,7 +712,7 @@ int main(int argc, char *argv[])
 			ifull = imax*jmax-ibound;
 		//}
 
-		
+		printf("%f\n", delt);
 
 		//-----------------------------------------------------
 		// STEP 11: Enqueue the kernel for execution
@@ -747,8 +753,18 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
 		clWaitForEvents(1, &event);
+
+		if (cycle == 1) {
+			status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0,
+				datasize, TEMP_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(TEMP_h, imax + 2, jmax + 2, "TEMP_h_before.txt");
+		}
 
 		/* Compute tentative velocity field (F, G) */
 		/*----------------------------------------*/
@@ -782,8 +798,32 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
 		clWaitForEvents(1, &event);
+
+		if (cycle == 1) {
+			status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0,
+				datasize, F_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(F_h, imax + 2, jmax + 2, "F_h_before.txt");
+		}
+
+		
+
+		if (cycle == 1) {
+			status = clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0,
+				datasize, G_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+
+			print_1darray_to_file(G_h, imax + 2, jmax + 2, "G_h_before.txt");
+		}
 
 		/* Compute right hand side for pressure equation */
 		/*-----------------------------------------------*/
@@ -810,7 +850,6 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
 		clWaitForEvents(1, &event);
 
 		/* Solve the pressure equation by successive over relaxation */
@@ -822,6 +861,12 @@ int main(int argc, char *argv[])
 			printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
+
+		if (cycle == 0)
+			print_1darray_to_file(RHS_h, imax + 2, jmax + 2, "RHS_h_0_before.txt");
+
+		if (cycle == 1)
+			print_1darray_to_file(RHS_h, imax + 2, jmax + 2, "RHS_h_1_before.txt");
 
 		int iter;
 
@@ -839,10 +884,12 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
+
+			
 #endif
 
 #ifdef ON_GPU_P0
-			
+
 			// Associate the input and output buffers with the POISSON_p0_kernel
 			status = clSetKernelArg(POISSON_p0_kernel, 0, sizeof(cl_mem), &P_d);
 			status |= clSetKernelArg(POISSON_p0_kernel, 1, sizeof(cl_mem), &FLAG_d);
@@ -880,6 +927,7 @@ int main(int argc, char *argv[])
 
 
 #endif
+			printf("%f\n", p0);
 
 			p0 = sqrt(p0/ifull);
 			if (p0 < 0.0001)
@@ -889,15 +937,17 @@ int main(int argc, char *argv[])
 			rdx2 = 1./delx/delx;
 			rdy2 = 1./dely/dely;
 
+			REAL beta_2;
+
+			beta_2 = -omg/(2.0*(rdx2+rdy2));
+
 			/* SOR-iteration */
 			/*---------------*/
 			for (iter = 1; iter <= itermax; iter++) {	
 				if (p_bound == 1) {
 
 #ifdef ON_CPU_1_RELAX
-					REAL beta_2, beta_mod;
-					
-					beta_2 = -omg/(2.0*(rdx2+rdy2));
+					REAL beta_mod;
 					
 					for (int i = 1; i <= iimax-1; i++) {
 						for (int j = 1; j <= jjmax-1; j++) {
@@ -921,7 +971,6 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_GPU_1_RELAX
-
 					//TODO time dependencies
 					/* relaxation for fluid cells */
 					/*----------------------------*/
@@ -951,32 +1000,30 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_CPU_1_RES
-
 					/* computation of residual */
 					/*-------------------------*/
-					REAL add;
+					//REAL add;
 
-					res = 0.0;
+					//res = 0.0;
 
-					for (int i = 1; i <= iimax-2; i++) {
-						for (int j = 1; j <= jjmax-2; j++) {
-							/* only fluid cells */
-							if ((FLAG_h[i*jjmax + j] & C_F) && (FLAG_h[i*jjmax + j] < 0x0100)) {
-								add = (	eps_E_h*(P_h[(i+1)*jjmax + j]-P_h[i*jjmax + j]) - 
-										eps_W_h*(P_h[i*jjmax + j]-P_h[(i-1)*jjmax + j])) * rdx2
-										+ (	eps_N_h*(P_h[i*jjmax + j+1]-P_h[i*jjmax + j]) -
-											eps_S_h*(P_h[i*jjmax + j]-P_h[i*jjmax + j-1])) * rdy2
-										- RHS_h[i*jjmax + j];
+					//for (int i = 1; i <= iimax-2; i++) {
+					//	for (int j = 1; j <= jjmax-2; j++) {
+					//		/* only fluid cells */
+					//		if ((FLAG_h[i*jjmax + j] & C_F) && (FLAG_h[i*jjmax + j] < 0x0100)) {
+					//			add = (	eps_E_h*(P_h[(i+1)*jjmax + j]-P_h[i*jjmax + j]) - 
+					//					eps_W_h*(P_h[i*jjmax + j]-P_h[(i-1)*jjmax + j])) * rdx2
+					//					+ (	eps_N_h*(P_h[i*jjmax + j+1]-P_h[i*jjmax + j]) -
+					//						eps_S_h*(P_h[i*jjmax + j]-P_h[i*jjmax + j-1])) * rdy2
+					//					- RHS_h[i*jjmax + j];
 
-								res += add * add;	
-							}
-						}
-					}
+					//			res += add * add;	
+					//		}
+					//	}
+					//}
 
 #endif
 
 #ifdef ON_GPU_1_RES
-
 					//TODO because of dependencies above
 					//status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 					//	datasize, P_h, 0, NULL, NULL);
@@ -1010,23 +1057,23 @@ int main(int argc, char *argv[])
 					//clWaitForEvents(1, &event);
 #endif
 
-					res = sqrt(res/ifull)/p0;
+					//res = sqrt(res/ifull)/p0;
 
-					/* convergence? */
-					if (res < eps) {
-						break;
-					}
+					///* convergence? */
+					//if (res < eps) {
+					//	break;
+					//}
 
 				} else if (p_bound == 2) {
 
 #ifdef ON_CPU_2_COPY
 					//TODO because of time dependencies above
-					status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-						datasize, P_h, 0, NULL, NULL);
-					if (status != CL_SUCCESS) {
-						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-						exit(-1);
-					}
+					//status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
 					
 					
 					/* copy values at external boundary */
@@ -1059,7 +1106,7 @@ int main(int argc, char *argv[])
 						}
 					}	
 
-					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -1094,21 +1141,18 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_CPU_2_RELAX					
-					status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-						datasize, P_h, 0, NULL, NULL);
-					if (status != CL_SUCCESS) {
-						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-						exit(-1);
-					}
+					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//	datasize, P_h, 0, NULL, NULL);
+					//if (status != CL_SUCCESS) {
+					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+					//	exit(-1);
+					//}
 
-					//if (cycle == 2 && iter == 1)
-					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_before.txt");
+					if (cycle == 1 && iter == 1)
+						print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_before.txt");
 
 					/* relaxation for fluid cells */
 					/*----------------------------*/
-					REAL beta_2;
-					
-					beta_2 = -omg/(2.0*(rdx2+rdy2));
 						
 					for (int i = 1; i <= iimax-2; i++) {
 						for (int j = 1; j <= jjmax-2; j++) {
@@ -1120,10 +1164,10 @@ int main(int argc, char *argv[])
 						}
 					}
 
-					//if (cycle == 2 && iter == 1)
-					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_after.txt");
+					if (cycle == 1 && iter == 1)
+						print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_after.txt");
 
-					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
+					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -1180,6 +1224,7 @@ int main(int argc, char *argv[])
 										- RHS_h[i*jjmax + j];
 
 								res += add * add;
+								
 							}
 						}
 					}		
@@ -1230,7 +1275,9 @@ int main(int argc, char *argv[])
 						res += res_result_h[group_id];
 					}
 #endif					
+					fprintf(log_file_gpu, "%e %f\n", res, p0);
 					res = sqrt(res/ifull)/p0;
+					
 
 					// convergence?
 					if (res < eps) {
@@ -1249,6 +1296,27 @@ int main(int argc, char *argv[])
 
 		/* Compute the new velocity field */
 		/*--------------------------------*/
+
+		if (cycle == 1) {
+			status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+				datasize, U_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(U_h, imax + 2, jmax + 2, "U_h_1_before.txt");
+		}
+		if (cycle == 1) {
+			status = clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+				datasize, V_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(V_h, imax + 2, jmax + 2, "V_h_1_before.txt");
+		}
 
 		// Associate the input and output buffers with the ADAP_UV_kernel 
 		status = clSetKernelArg(ADAP_UV_kernel, 0, sizeof(cl_mem), &U_d);
@@ -1276,6 +1344,83 @@ int main(int argc, char *argv[])
 		}
 		clWaitForEvents(1, &event);
 
+#ifdef ON_CPU_BCOND
+		status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+			datasize, U_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		status = clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+			datasize, V_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0, 
+			datasize, P_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		status = clEnqueueReadBuffer(cmdQueue, TEMP_d, CL_TRUE, 0, 
+			datasize, TEMP_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		if (cycle == 1)
+			print_1darray_to_file(V_h, imax+2, jmax+2, "V_h_1_bcond_before.txt");
+		if (cycle == 1)
+			print_1darray_to_file(U_h, imax+2, jmax+2, "U_h_1_bcond_before.txt");
+		if (cycle == 1)
+			print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_1_bcond_before.txt");
+
+		SETBCOND_1d(U_h, V_h, P_h, TEMP_h, FLAG_h, imax, jmax, wW, wE, wN, wS);
+
+		SETSPECBCOND_1d(problem, U_h, V_h, P_h, TEMP_h, imax, jmax, UI, VI);
+
+		if (cycle == 0)
+			print_1darray_to_file(V_h, imax+2, jmax+2, "V_h_0_bcond.txt");
+		if (cycle == 0)
+			print_1darray_to_file(U_h, imax+2, jmax+2, "U_h_0_bcond.txt");
+		if (cycle == 0)
+			print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_0_bcond.txt");
+
+		status = clEnqueueWriteBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+			datasize, U_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		status = clEnqueueWriteBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+			datasize, V_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
+			datasize, P_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+
+		status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_TRUE, 0, 
+			datasize, TEMP_h, 0, NULL, NULL);
+		if (status != CL_SUCCESS) {
+			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+			exit(-1);
+		}
+#endif
+
+#ifdef ON_GPU_BCOND
 		/* Set boundary conditions */
 		/*-------------------------*/
 
@@ -1352,6 +1497,40 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 		clWaitForEvents(1, &event);
+
+
+		if (cycle == 0) {
+			status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+				datasize, U_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(U_h, imax + 2, jmax + 2, "U_h_0_bcond.txt");
+		}
+		if (cycle == 0) {
+			status = clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+				datasize, V_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(V_h, imax + 2, jmax + 2, "V_h_0_bcond.txt");
+		}
+
+		if (cycle == 0) {
+			status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0, 
+				datasize, P_h, 0, NULL, NULL);
+			if (status != CL_SUCCESS) {
+				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
+				exit(-1);
+			}
+
+			print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_0_bcond.txt");
+		}
+#endif
 
 		//TODO other problems than dcav
 		//if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
@@ -1481,6 +1660,7 @@ int main(int argc, char *argv[])
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
 
+
 		//TODO other problems than dcav
 		/* Determine fluid cells for free boundary problems */
 		/* and set boundary values at free surface          */
@@ -1500,28 +1680,52 @@ int main(int argc, char *argv[])
 		COMP_TEMP(U, V, TEMP, FLAG, imax, jmax,
 			delt, delx, dely, gamma, Re, Pr);
 
+		if (cycle == 1)
+			print_array_to_file(TEMP, imax+2, jmax+2, "TEMP_before.txt");
+
 		/* Compute tentative velocity field (F, G) */
 		/*----------------------------------------*/
 		COMP_FG(U, V, TEMP, F, G, FLAG, imax, jmax,
 			delt, delx, dely, GX, GY, gamma, Re, beta);
 
+		if (cycle == 1)
+			print_array_to_file(F, imax+2, jmax+2, "F_before.txt");
+
+		if (cycle == 1)
+			print_array_to_file(G, imax+2, jmax+2, "G_before.txt");
+
 		/* Compute right hand side for pressure equation */
 		/*-----------------------------------------------*/
 		COMP_RHS(F, G, RHS, FLAG, imax, jmax, delt, delx, dely);
+
+		if (cycle == 1)
+			print_array_to_file(RHS, imax+2, jmax+2, "RHS_1_before.txt");
 
 		/* Solve the pressure equation by successive over relaxation */
 		/*-----------------------------------------------------------*/
 		if (ifull > 0) {
 			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
-			eps, itermax, omg, &res, ifull, p_bound);
+			eps, itermax, omg, &res, ifull, p_bound, log_file_cpu, cycle);
 		}
 
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
 			t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
 
+		if (cycle == 1)
+			print_array_to_file(V, imax+2, jmax+2, "V_1_before.txt");
+		if (cycle == 1)
+			print_array_to_file(U, imax+2, jmax+2, "U_1_before.txt");
+
 		/* Compute the new velocity field */
 		/*--------------------------------*/
 		ADAP_UV(U, V, F, G, P, FLAG, imax, jmax, delt, delx, dely);
+		
+		if (cycle == 1)
+			print_array_to_file(V, imax+2, jmax+2, "V_1_bcond_before.txt");
+		if (cycle == 1)
+			print_array_to_file(U, imax+2, jmax+2, "U_1_bcond_before.txt");
+		if (cycle == 1)
+			print_array_to_file(P, imax+2, jmax+2, "P_1_bcond_before.txt");
 
 		/* Set boundary conditions */
 		/*-------------------------*/
@@ -1530,6 +1734,14 @@ int main(int argc, char *argv[])
 		/* Overwrite preset default values */
 		/*---------------------------------*/
 		SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
+
+
+		if (cycle == 0)
+			print_array_to_file(V, imax+2, jmax+2, "V_0_bcond.txt");
+		if (cycle == 0)
+			print_array_to_file(U, imax+2, jmax+2, "U_0_bcond.txt");
+		if (cycle == 0)
+			print_array_to_file(P, imax+2, jmax+2, "P_bcond.txt");
 
 		//TODO other problems than dcav
 		//	if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
@@ -1727,7 +1939,7 @@ int main(int argc, char *argv[])
 	FREE_RMATRIX(RHS,	0, imax+1,	0, jmax+1);
 	FREE_IMATRIX(FLAG,	0, imax+1,	0, jmax+1);
 
-#ifdef PRINT
+#ifdef LOG
 	fclose(log_file_cpu);
 	fclose(log_file_gpu);
 #endif

@@ -1,4 +1,4 @@
-//#pragma OPENCL EXTENSION cl_khr_fp64 : enable 
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable 
 #include "datadef.h"
 
 __kernel
@@ -21,7 +21,7 @@ void COMP_TEMP_kernel(	__global REAL *U,
 	imax = imax + 2;
 	jmax = jmax + 2;
 
-	int i = get_global_id(1); //TODO swap
+	int i = get_global_id(1);
 	int j = get_global_id(0);
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
@@ -606,7 +606,7 @@ void SETBCOND_outer_kernel(__global REAL *U,
 	int j = get_global_id(0);
 	
 	if ((i >= 0 && i <= imax - 1) && (j >= 0 && j <= jmax - 1)) { // TODO important
-
+		// western and eastern boundary
 		if (wW == 1) {											// slip
 			U[0*jmax + j] = 0.0;								// u = 0
 			V[0*jmax + j] = V[1*jmax + j];						// dv/dn = 0
@@ -647,6 +647,7 @@ void SETBCOND_outer_kernel(__global REAL *U,
 
 		TEMP[(imax-1)*jmax + j] = TEMP[(imax-2)*jmax + j];
 
+		// northern and southern boundary
 		if (wN == 1) {
 			V[i*jmax + (jmax-2)] = 0.0;
 			U[i*jmax + (jmax-1)] = U[i*jmax + (jmax-2)];

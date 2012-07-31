@@ -2,8 +2,8 @@
 #ifndef DATADEF_H_
 #define DATADEF_H_
 
-#define REAL	float
-#define INREAL	"%f"
+#define REAL	double
+#define INREAL	"%lf"
 #define OUTREAL %.3e
 
 struct particle {

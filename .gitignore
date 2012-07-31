@@ -49,6 +49,7 @@ local.properties
 **/[Dd]ebug/
 **/[Rr]elease/
 **/x64/
+*/logs/
 
 *_i.c
 *_p.c

@@ -15,7 +15,7 @@ void COMP_RHS(REAL **F,REAL **G,REAL **RHS,int **FLAG,int imax,int jmax,
 
 int POISSON(REAL **P,REAL **RHS,int **FLAG,
             int imax,int jmax,REAL delx,REAL dely,
-            REAL eps,int itermax,REAL omg,REAL *res,int ifull,int p_bound);
+            REAL eps,int itermax,REAL omg,REAL *res,int ifull,int p_bound, FILE* fp, int cycle);
 
 void ADAP_UV(REAL **U,REAL **V,REAL **F,REAL **G,REAL **P,int **FLAG,
              int imax,int jmax,REAL delt,REAL delx,REAL dely);
