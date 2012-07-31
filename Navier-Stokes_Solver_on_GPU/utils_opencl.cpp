@@ -375,11 +375,10 @@ unsigned int nextPow2(unsigned int x)
 size_t getGlobalSize(int group_size, int global_size) 
 {
 	int r = global_size % group_size;
-	if(r == 0) 
-	{
+
+	if (r == 0) {
 		return global_size;
-	} else 
-	{
+	} else 	{
 		return global_size + group_size - r;
 	}
 }

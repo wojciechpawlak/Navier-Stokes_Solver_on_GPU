@@ -16,22 +16,22 @@
 #include "visual.h"
 #include "surface.h"
 
-//#define BLOCK_SIZE 16
+#define BLOCK_SIZE_2D_1 16
+#define BLOCK_SIZE_2D_2 16
+#define BLOCK_SIZE_1D 256
 
 #define GPU
 #define CPU
 #define VERIFY
 //#define PRINT
-#define LOG
+//#define LOG
 
-#define ON_CPU_P0
+#define ON_GPU_P0
 #define ON_CPU_1_RELAX
 #define ON_CPU_1_RES
-#define ON_CPU_2_COPY
+#define ON_GPU_2_COPY
 #define ON_CPU_2_RELAX
-#define ON_CPU_2_RES
-
-#define ON_CPU_BCOND
+#define ON_GPU_2_RES
 
 #define TIME_WITH_MEM
 //#define TIME_WITHOUT_MEM
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 	SETBCOND(U, V, P, TEMP, FLAG, imax, jmax, wW, wE, wN, wS);
 	SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
 
-	#ifdef GPU
+#ifdef GPU
 
 	/*--------------------------------------------------------------------------------*/
 
@@ -188,7 +188,8 @@ int main(int argc, char *argv[])
 	}
 
 	// Print basic information about each platform
-	printPlatforms(platforms, numPlatforms, status);
+	//TODO uncommment
+	//printPlatforms(platforms, numPlatforms, status);
 
 	//-----------------------------------------------------
 	// STEP 2: Discover and initialize the devices
@@ -227,9 +228,11 @@ int main(int argc, char *argv[])
 	} 
 
 	// Print basic information about each device
-	printDevices(devices, numDevices, status);
+	//TODO uncomment
+	// printDevices(devices, numDevices, status);
 
-	getDeviceInfo(devices, numDevices);
+	//TODO uncomment
+	// getDeviceInfo(devices, numDevices);
 
 	//-----------------------------------------------------
 	// STEP 3: Create a context
@@ -250,8 +253,7 @@ int main(int argc, char *argv[])
 
 	cl_command_queue cmdQueue = NULL;
 
-	// Create a command queue and associate it with the device you 
-	// want to execute on
+	// Create a command queue and associate it with the device to execute on
 	cmdQueue = clCreateCommandQueue(context, devices[0], 0, &status);
 	if (status != CL_SUCCESS || cmdQueue == NULL) {
 		printf("clCreateCommandQueue failed: %s\n", cluErrorString(status));
@@ -292,17 +294,15 @@ int main(int argc, char *argv[])
 	int MAX_THREADS_PR_WORKGROUP = buf2;
 	int THREADS_PR_WORKGROUP = argc > 2 ? nextPow2(atoi(argv[2])) : MAX_THREADS_PR_WORKGROUP;
 
-	int BLOCK_SIZE = (int)sqrt((double)THREADS_PR_WORKGROUP);
-
 	printf("Threads per work group = %d. \n", THREADS_PR_WORKGROUP);
 
-	//int NUM_WORKGROUPS = (THREADS_PR_WORKGROUP * THREADS_PR_WORKGROUP) / BLOCK_SIZE;
-	int NUM_WORKGROUPS = (getGlobalSize(BLOCK_SIZE, imax) * getGlobalSize(BLOCK_SIZE, jmax))
-		/ (BLOCK_SIZE*BLOCK_SIZE);
-	//int NUM_WORKGROUPS = (64*64) / BLOCK_SIZE;
+	int NUM_WORKGROUPS_2D = (getGlobalSize(BLOCK_SIZE_2D_1, imax) * getGlobalSize(BLOCK_SIZE_2D_2, jmax))
+		/ (BLOCK_SIZE_2D_1*BLOCK_SIZE_2D_2);
+	int NUM_WORKGROUPS_1D = (getGlobalSize(BLOCK_SIZE_2D_1, imax) * getGlobalSize(BLOCK_SIZE_2D_2, jmax))
+		/ BLOCK_SIZE_1D;
 
-	//int NUM_WORKGROUPS = (elements + THREADS_PR_WORKGROUP)/THREADS_PR_WORKGROUP; 
-	printf("Work groups allocated = %d\n\n", NUM_WORKGROUPS);
+	printf("Work groups allocated (%dx%d) = %d\n\n", BLOCK_SIZE_2D_1, BLOCK_SIZE_2D_2, NUM_WORKGROUPS_2D);
+	printf("Work groups allocated (%d) = %d\n\n", BLOCK_SIZE_1D, NUM_WORKGROUPS_1D);
 
 
 
@@ -320,10 +320,10 @@ int main(int argc, char *argv[])
 	G_h		= (REAL *) malloc(datasize);
 	RHS_h	= (REAL *) malloc(datasize);
 	P_h		= (REAL *) malloc(datasize);
-	p0_result_h = (REAL *) malloc(NUM_WORKGROUPS*sizeof(REAL));
-	res_result_h = (REAL *) malloc(NUM_WORKGROUPS*sizeof(REAL));
+	p0_result_h = (REAL *) malloc(NUM_WORKGROUPS_1D*sizeof(REAL));
+	res_result_h = (REAL *) malloc(NUM_WORKGROUPS_1D*sizeof(REAL));
 
-	//TODO initialize them seperately
+	//TODO initialize them separately
 	// Copy initial contents for host buffers from original arrays
 	copy_array_int_2d_to_1d(FLAG,	FLAG_h, imax+2, jmax+2);
 
@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
 	// Create a buffer object for vector of partial results
 	// for initial pressure value computation
 	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
-		NUM_WORKGROUPS*sizeof(REAL), p0_result_h, &status);
+		NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, &status);
 	if (status != CL_SUCCESS || p0_result_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
 		exit(-1);
@@ -444,7 +444,7 @@ int main(int argc, char *argv[])
 	// Create a buffer object for vector of partial results
 	// for residual computation
 	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
-		NUM_WORKGROUPS*sizeof(REAL), res_result_h, &status);
+		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, &status);
 	if (status != CL_SUCCESS || res_result_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
 		exit(-1);
@@ -635,15 +635,24 @@ int main(int argc, char *argv[])
 
 	// Define an index space (global work size) of work items for execution.
 	// A workgroup size (local work size) is not required, but can be used.
-	size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
+	size_t localWorkSize[] = {BLOCK_SIZE_2D_1, BLOCK_SIZE_2D_2};
 
-	size_t globalWorkSize[] = {getGlobalSize(BLOCK_SIZE, imax), getGlobalSize(BLOCK_SIZE, jmax)};
+	size_t globalWorkSize[] = {getGlobalSize(BLOCK_SIZE_2D_1, imax), getGlobalSize(BLOCK_SIZE_2D_2, jmax)};
 
-	size_t localWorkSize1d[] = {BLOCK_SIZE * BLOCK_SIZE};
+	//size_t localWorkSize1d[] = {BLOCK_SIZE * BLOCK_SIZE};
+	size_t localWorkSize1d[] = {BLOCK_SIZE_1D};
 
-	size_t globalWorkSize1d[] = {getGlobalSize(BLOCK_SIZE, imax) * getGlobalSize(BLOCK_SIZE, jmax)};
+	size_t globalWorkSize1d[] = {getGlobalSize(BLOCK_SIZE_1D, imax) * getGlobalSize(BLOCK_SIZE_1D, jmax)};
+
+	printf("Local Work Size 2D: %d %d\n", localWorkSize[0], localWorkSize[1]);
+	printf("Global Work Size 2D: %d %d\n", globalWorkSize[0], globalWorkSize[1]);
+	printf("Local Work Size 1D: %d\n", localWorkSize1d[0]);
+	printf("Global Work Size 1D: %d\n\n", globalWorkSize1d[0]);
 
 
+
+
+	//////////////////////////////////////////////////////////////////////////
 
 	start_gpu = clock();
 
@@ -679,10 +688,10 @@ int main(int argc, char *argv[])
 		datasize, P_h, 0, NULL, NULL);
 	
 	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_TRUE, 0, 
-		NUM_WORKGROUPS*sizeof(REAL), p0_result_h, 0, NULL, NULL);
+		NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 
 	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
-		NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
+		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
 
 	if (status != CL_SUCCESS) {
 		printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -711,8 +720,6 @@ int main(int argc, char *argv[])
 		//} else {
 			ifull = imax*jmax-ibound;
 		//}
-
-		printf("%f\n", delt);
 
 		//-----------------------------------------------------
 		// STEP 11: Enqueue the kernel for execution
@@ -753,18 +760,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
-
-		if (cycle == 1) {
-			status = clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0,
-				datasize, TEMP_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(TEMP_h, imax + 2, jmax + 2, "TEMP_h_before.txt");
-		}
+		//clWaitForEvents(1, &event);
 
 		/* Compute tentative velocity field (F, G) */
 		/*----------------------------------------*/
@@ -798,32 +794,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
-
-		if (cycle == 1) {
-			status = clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0,
-				datasize, F_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(F_h, imax + 2, jmax + 2, "F_h_before.txt");
-		}
-
-		
-
-		if (cycle == 1) {
-			status = clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0,
-				datasize, G_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-
-			print_1darray_to_file(G_h, imax + 2, jmax + 2, "G_h_before.txt");
-		}
+		//clWaitForEvents(1, &event);
 
 		/* Compute right hand side for pressure equation */
 		/*-----------------------------------------------*/
@@ -850,7 +821,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
+		//clWaitForEvents(1, &event);
 
 		/* Solve the pressure equation by successive over relaxation */
 		/*-----------------------------------------------------------*/
@@ -861,12 +832,6 @@ int main(int argc, char *argv[])
 			printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-
-		if (cycle == 0)
-			print_1darray_to_file(RHS_h, imax + 2, jmax + 2, "RHS_h_0_before.txt");
-
-		if (cycle == 1)
-			print_1darray_to_file(RHS_h, imax + 2, jmax + 2, "RHS_h_1_before.txt");
 
 		int iter;
 
@@ -889,7 +854,6 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_GPU_P0
-
 			// Associate the input and output buffers with the POISSON_p0_kernel
 			status = clSetKernelArg(POISSON_p0_kernel, 0, sizeof(cl_mem), &P_d);
 			status |= clSetKernelArg(POISSON_p0_kernel, 1, sizeof(cl_mem), &FLAG_d);
@@ -909,25 +873,22 @@ int main(int argc, char *argv[])
 				printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 				exit(-1);
 			}
-			clWaitForEvents(1, &event);
+			//clWaitForEvents(1, &event);
 
 			// Read the partial results from reduction kernel
 			status = clEnqueueReadBuffer(cmdQueue, p0_result_d, CL_TRUE, 0,
-				NUM_WORKGROUPS*sizeof(REAL), p0_result_h, 0, NULL, NULL);
+				NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 			if (status != CL_SUCCESS) {
 				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
 				exit(-1);
 			}
 
 			// Compute the initial pressure value p0
-			for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
+			for (int group_id = 0; group_id < NUM_WORKGROUPS_1D; group_id++)
 			{
 				p0 += p0_result_h[group_id];
 			}
-
-
 #endif
-			printf("%f\n", p0);
 
 			p0 = sqrt(p0/ifull);
 			if (p0 < 0.0001)
@@ -967,7 +928,6 @@ int main(int argc, char *argv[])
 							}
 						}
 					}
-
 #endif
 
 #ifdef ON_GPU_1_RELAX
@@ -996,7 +956,7 @@ int main(int argc, char *argv[])
 					//	exit(-1);
 					//}
 
-					//clWaitForEvents(1, &event);
+					////clWaitForEvents(1, &event);
 #endif
 
 #ifdef ON_CPU_1_RES
@@ -1054,7 +1014,7 @@ int main(int argc, char *argv[])
 					//	exit(-1);
 					//}
 
-					//clWaitForEvents(1, &event);
+					////clWaitForEvents(1, &event);
 #endif
 
 					//res = sqrt(res/ifull)/p0;
@@ -1135,21 +1095,19 @@ int main(int argc, char *argv[])
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-					clWaitForEvents(1, &event);
-
-
+					//clWaitForEvents(1, &event);
 #endif
 
 #ifdef ON_CPU_2_RELAX					
-					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
-					//	datasize, P_h, 0, NULL, NULL);
-					//if (status != CL_SUCCESS) {
-					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
-					//	exit(-1);
-					//}
+					status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+						datasize, P_h, 0, NULL, NULL);
+					if (status != CL_SUCCESS) {
+						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
 
-					if (cycle == 1 && iter == 1)
-						print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_before.txt");
+					//if (cycle == 1 && iter == 1)
+					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_before.txt");
 
 					/* relaxation for fluid cells */
 					/*----------------------------*/
@@ -1164,8 +1122,8 @@ int main(int argc, char *argv[])
 						}
 					}
 
-					if (cycle == 1 && iter == 1)
-						print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_after.txt");
+					//if (cycle == 1 && iter == 1)
+					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_after.txt");
 
 					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
 						datasize, P_h, 0, NULL, NULL);
@@ -1199,7 +1157,7 @@ int main(int argc, char *argv[])
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-					clWaitForEvents(1, &event);
+					//clWaitForEvents(1, &event);
 
 					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
 					//	datasize, P_h, 0, NULL, NULL);
@@ -1241,8 +1199,8 @@ int main(int argc, char *argv[])
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 2, sizeof(cl_mem), &FLAG_d);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 3, sizeof(int), &imax);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 4, sizeof(int), &jmax);
-					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &delx);
-					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &dely);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &rdx2);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &rdy2);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(cl_mem), &res_result_d);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 8, sizeof(REAL)*localWorkSize1d[0], NULL);
 					if (status != CL_SUCCESS) {
@@ -1257,11 +1215,11 @@ int main(int argc, char *argv[])
 						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 						exit(-1);
 					}
-					clWaitForEvents(1, &event);
+					//clWaitForEvents(1, &event);
 
 					// Read the partial results from reduction kernel
 					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_TRUE, 0,
-						NUM_WORKGROUPS*sizeof(REAL), res_result_h, 0, NULL, NULL);
+						NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
 						exit(-1);
@@ -1270,12 +1228,11 @@ int main(int argc, char *argv[])
 					res = 0.0;
 
 					// Compute residual from partial results
-					for (int group_id = 0; group_id < NUM_WORKGROUPS; group_id++)
+					for (int group_id = 0; group_id < NUM_WORKGROUPS_1D; group_id++)
 					{
 						res += res_result_h[group_id];
 					}
 #endif					
-					fprintf(log_file_gpu, "%e %f\n", res, p0);
 					res = sqrt(res/ifull)/p0;
 					
 
@@ -1296,27 +1253,6 @@ int main(int argc, char *argv[])
 
 		/* Compute the new velocity field */
 		/*--------------------------------*/
-
-		if (cycle == 1) {
-			status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
-				datasize, U_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(U_h, imax + 2, jmax + 2, "U_h_1_before.txt");
-		}
-		if (cycle == 1) {
-			status = clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
-				datasize, V_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(V_h, imax + 2, jmax + 2, "V_h_1_before.txt");
-		}
 
 		// Associate the input and output buffers with the ADAP_UV_kernel 
 		status = clSetKernelArg(ADAP_UV_kernel, 0, sizeof(cl_mem), &U_d);
@@ -1342,85 +1278,8 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
+		//clWaitForEvents(1, &event);
 
-#ifdef ON_CPU_BCOND
-		status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
-			datasize, U_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		status = clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
-			datasize, V_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0, 
-			datasize, P_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		status = clEnqueueReadBuffer(cmdQueue, TEMP_d, CL_TRUE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		if (cycle == 1)
-			print_1darray_to_file(V_h, imax+2, jmax+2, "V_h_1_bcond_before.txt");
-		if (cycle == 1)
-			print_1darray_to_file(U_h, imax+2, jmax+2, "U_h_1_bcond_before.txt");
-		if (cycle == 1)
-			print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_1_bcond_before.txt");
-
-		SETBCOND_1d(U_h, V_h, P_h, TEMP_h, FLAG_h, imax, jmax, wW, wE, wN, wS);
-
-		SETSPECBCOND_1d(problem, U_h, V_h, P_h, TEMP_h, imax, jmax, UI, VI);
-
-		if (cycle == 0)
-			print_1darray_to_file(V_h, imax+2, jmax+2, "V_h_0_bcond.txt");
-		if (cycle == 0)
-			print_1darray_to_file(U_h, imax+2, jmax+2, "U_h_0_bcond.txt");
-		if (cycle == 0)
-			print_1darray_to_file(P_h, imax+2, jmax+2, "P_h_0_bcond.txt");
-
-		status = clEnqueueWriteBuffer(cmdQueue, U_d, CL_TRUE, 0, 
-			datasize, U_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		status = clEnqueueWriteBuffer(cmdQueue, V_d, CL_TRUE, 0, 
-			datasize, V_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
-			datasize, P_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-
-		status = clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_TRUE, 0, 
-			datasize, TEMP_h, 0, NULL, NULL);
-		if (status != CL_SUCCESS) {
-			printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-			exit(-1);
-		}
-#endif
-
-#ifdef ON_GPU_BCOND
 		/* Set boundary conditions */
 		/*-------------------------*/
 
@@ -1447,7 +1306,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
+		//clWaitForEvents(1, &event);
 
 		// Associate the input and output buffers with the SETBCOND_inner_kernel 
 		status = clSetKernelArg(SETBCOND_inner_kernel, 0, sizeof(cl_mem), &U_d);
@@ -1468,7 +1327,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
+		//clWaitForEvents(1, &event);
 
 		/* Set special boundary conditions */
 		/* Overwrite preset default values */
@@ -1496,41 +1355,7 @@ int main(int argc, char *argv[])
 			printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
 			exit(-1);
 		}
-		clWaitForEvents(1, &event);
-
-
-		if (cycle == 0) {
-			status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
-				datasize, U_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(U_h, imax + 2, jmax + 2, "U_h_0_bcond.txt");
-		}
-		if (cycle == 0) {
-			status = clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
-				datasize, V_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(V_h, imax + 2, jmax + 2, "V_h_0_bcond.txt");
-		}
-
-		if (cycle == 0) {
-			status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0, 
-				datasize, P_h, 0, NULL, NULL);
-			if (status != CL_SUCCESS) {
-				printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
-				exit(-1);
-			}
-
-			print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_0_bcond.txt");
-		}
-#endif
+		//clWaitForEvents(1, &event);
 
 		//TODO other problems than dcav
 		//if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
@@ -1635,11 +1460,11 @@ int main(int argc, char *argv[])
 
 	#endif
 
-	#endif
+#endif
 
 	/*--------------------------------------------------------------------------------*/
 
-	#ifdef CPU
+#ifdef CPU
 
 	/*
 	 * CPU Execution
@@ -1680,53 +1505,29 @@ int main(int argc, char *argv[])
 		COMP_TEMP(U, V, TEMP, FLAG, imax, jmax,
 			delt, delx, dely, gamma, Re, Pr);
 
-		if (cycle == 1)
-			print_array_to_file(TEMP, imax+2, jmax+2, "TEMP_before.txt");
-
 		/* Compute tentative velocity field (F, G) */
 		/*----------------------------------------*/
 		COMP_FG(U, V, TEMP, F, G, FLAG, imax, jmax,
 			delt, delx, dely, GX, GY, gamma, Re, beta);
 
-		if (cycle == 1)
-			print_array_to_file(F, imax+2, jmax+2, "F_before.txt");
-
-		if (cycle == 1)
-			print_array_to_file(G, imax+2, jmax+2, "G_before.txt");
-
 		/* Compute right hand side for pressure equation */
 		/*-----------------------------------------------*/
 		COMP_RHS(F, G, RHS, FLAG, imax, jmax, delt, delx, dely);
-
-		if (cycle == 1)
-			print_array_to_file(RHS, imax+2, jmax+2, "RHS_1_before.txt");
 
 		/* Solve the pressure equation by successive over relaxation */
 		/*-----------------------------------------------------------*/
 		if (ifull > 0) {
 			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
-			eps, itermax, omg, &res, ifull, p_bound, log_file_cpu, cycle);
+			eps, itermax, omg, &res, ifull, p_bound);
 		}
 
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
 			t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
 
-		if (cycle == 1)
-			print_array_to_file(V, imax+2, jmax+2, "V_1_before.txt");
-		if (cycle == 1)
-			print_array_to_file(U, imax+2, jmax+2, "U_1_before.txt");
-
 		/* Compute the new velocity field */
 		/*--------------------------------*/
 		ADAP_UV(U, V, F, G, P, FLAG, imax, jmax, delt, delx, dely);
 		
-		if (cycle == 1)
-			print_array_to_file(V, imax+2, jmax+2, "V_1_bcond_before.txt");
-		if (cycle == 1)
-			print_array_to_file(U, imax+2, jmax+2, "U_1_bcond_before.txt");
-		if (cycle == 1)
-			print_array_to_file(P, imax+2, jmax+2, "P_1_bcond_before.txt");
-
 		/* Set boundary conditions */
 		/*-------------------------*/
 		SETBCOND(U, V, P, TEMP, FLAG, imax, jmax, wW, wE, wN, wS);
@@ -1734,14 +1535,6 @@ int main(int argc, char *argv[])
 		/* Overwrite preset default values */
 		/*---------------------------------*/
 		SETSPECBCOND(problem, U, V, P, TEMP, imax, jmax, UI, VI);
-
-
-		if (cycle == 0)
-			print_array_to_file(V, imax+2, jmax+2, "V_0_bcond.txt");
-		if (cycle == 0)
-			print_array_to_file(U, imax+2, jmax+2, "U_0_bcond.txt");
-		if (cycle == 0)
-			print_array_to_file(P, imax+2, jmax+2, "P_bcond.txt");
 
 		//TODO other problems than dcav
 		//	if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
@@ -1815,11 +1608,11 @@ int main(int argc, char *argv[])
 
 	#endif
 
-	#endif
+#endif
 
 	/*--------------------------------------------------------------------------------*/
 
-	#ifdef VERIFY
+#ifdef VERIFY
 
 	/*
 	 * Verification
@@ -1877,7 +1670,7 @@ int main(int argc, char *argv[])
 	// Print timings
 	printf("  Speedup %.2fx\n\n", timer_cpu/timer_gpu);
 	
-	#endif
+#endif
 
 	/*--------------------------------------------------------------------------------*/
 
@@ -1885,7 +1678,7 @@ int main(int argc, char *argv[])
 	// STEP 13: Release OpenCL resources
 	//----------------------------------------------------- 
 
-	#ifdef GPU
+#ifdef GPU
 
 	// Free OpenCL resources
 	clReleaseMemObject(FLAG_d);
@@ -1925,7 +1718,7 @@ int main(int argc, char *argv[])
 	free(platforms);
 	free(devices);
 
-	#endif
+#endif
 
 	FREE_RMATRIX(U,		0, imax+1,	0, jmax+1);
 	FREE_RMATRIX(V,		0, imax+1,	0, jmax+1);

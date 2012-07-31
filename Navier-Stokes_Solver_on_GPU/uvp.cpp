@@ -156,7 +156,7 @@ void COMP_RHS(REAL **F, REAL **G, REAL **RHS, int **FLAG, int imax, int jmax,
 /*-------------------------------------------------------------*/
 int POISSON(REAL **P,REAL **RHS,int **FLAG,
 	int imax,int jmax,REAL delx,REAL dely,
-	REAL eps,int itermax,REAL omg,REAL *res,int ifull,int p_bound, FILE* fp, int cycle)
+	REAL eps,int itermax,REAL omg,REAL *res,int ifull,int p_bound)
 {
 	int i,j,iter;
 	REAL rdx2,rdy2;
@@ -171,8 +171,6 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 		for (j=1;j<=jmax;j++)
 			if (FLAG[i][j] & C_F)
 				p0 += P[i][j]*P[i][j];
-
-	printf("%f\n", p0);
 
 	p0 = sqrt(p0/ifull);
 	if (p0 < 0.0001)
@@ -265,8 +263,8 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 				}
 			}
 
-			if (cycle == 1 && iter == 1)
-				print_array_to_file(P, imax+2, jmax+2, "P_before.txt");
+			//if (cycle == 1 && iter == 1)
+			//	print_array_to_file(P, imax+2, jmax+2, "P_before.txt");
 
 			/* relaxation for fluid cells */
 			/*----------------------------*/
@@ -279,8 +277,8 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 				}
 			}
 
-			if (cycle == 1 && iter == 1)
-				print_array_to_file(P, imax+2, jmax+2, "P_after.txt");
+			//if (cycle == 1 && iter == 1)
+			//	print_array_to_file(P, imax+2, jmax+2, "P_after.txt");
 
 			/* computation of residual */
 			/*-------------------------*/
@@ -293,12 +291,9 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 							(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
 						
 						*res += add*add;
-						
 					}
 				}
 			}
-
-			fprintf(fp, "%e %f\n", *res, p0);
 			*res = sqrt((*res)/ifull)/p0;
 			
 			

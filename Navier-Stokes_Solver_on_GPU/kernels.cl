@@ -470,52 +470,46 @@ void POISSON_2_relaxation_kernel(	__global REAL *P,
 //	//}
 }
 
+//__kernel
+//void POISSON_2_comp_res_kernel(	__global REAL *P,
+//								__global REAL *RHS,
+//								__global int *FLAG,
+//								int imax,
+//								int jmax,
+//								REAL rdx2,
+//								REAL rdy2,
+//								__global REAL *res_result,
+//								__local REAL *scratch)
+//{
+//	// shared reduction kernel 2
+//}
+
+
 __kernel
 void POISSON_2_comp_res_kernel(	__global REAL *P,
 								__global REAL *RHS,
 								__global int *FLAG,
 								int imax,
 								int jmax,
-								REAL delx,
-								REAL dely,
+								REAL rdx2,
+								REAL rdy2,
 								__global REAL *res_result,
 								__local REAL *scratch)
 {
-	//TODO kernel with atom_inc for __global res value
-	
-	imax = imax + 2; // imax == get_global_size(0)
-	jmax = jmax + 2; // jmax == get_global_size(1)
+	imax = imax + 2;
+	jmax = jmax + 2;
 
 	unsigned int gid = get_global_id(0);
 	unsigned int tid = get_local_id(0);
 	
-	int i = gid % imax;
-	int j = gid / jmax;
+	// slow on GPU
+	//int i = gid % imax;
+	//int j = gid / jmax;
 
-	//int ti = tid / imax;
-	//int tj = tid % jmax;
-
-	//int j = get_global_id(1);
-
-	//int id = i * jmax + j; 
-
-	//__local REAL scratch[16*16];
-
-	//int li = get_local_id(0);
-	//int lj = get_local_id(1);
-
-	//int local_size_i = get_local_size(0);
-	//int local_size_j = get_local_size(1);
-
-	//int lid = li * get_local_size(1) + lj; 
+	int i = gid & (imax - 1);
+	int j = gid >> (int)log2((float)jmax);
 
 	REAL add;
-	REAL rdx2, rdy2;
-
-	//REAL result = 0.0;
-
-	rdx2 = 1./delx/delx;
-	rdy2 = 1./dely/dely;
 
 	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
 		/* only fluid cells */
@@ -534,19 +528,164 @@ void POISSON_2_comp_res_kernel(	__global REAL *P,
 
 	barrier(CLK_LOCAL_MEM_FENCE);
 
-	// do reduction in shared mem
-	for (unsigned int s = 1; s < get_local_size(0); s *= 2) {
-		// modulo arithmetic is slow!
-		if ((tid % (2*s)) == 0) {
+	// shared reduction kernel 1
+	//for (unsigned int s = 1; s < get_local_size(0); s *= 2) {
+	//	if ((tid % (2*s)) == 0) {
+	//		scratch[tid] += scratch[tid + s];
+	//	}
+	//	barrier(CLK_LOCAL_MEM_FENCE);
+	//}
+
+	// shared reduction kernel 2
+	//for (int s = 1; s < get_local_size(0); s *= 2) {
+	//	int index = 2 * s * tid;
+	//	if (index < get_local_size(0)) {
+	//		scratch[index] += scratch[index + s];
+	//	}
+	//	barrier(CLK_LOCAL_MEM_FENCE);
+	//}
+
+	// shared reduction kernel 3
+	for (int s = get_local_size(0)/2; s>0; s >>= 1) {
+		if (tid < s) {
 			scratch[tid] += scratch[tid + s];
 		}
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
 
 	if (tid == 0) {
-		res_result[get_group_id(0)*get_num_groups(1) + get_group_id(1)] = scratch[0];
+		res_result[get_group_id(0)] = scratch[0];
 	}
+
 }
+
+//TODO bad results
+//__kernel
+//void POISSON_2_comp_res_kernel(	__global REAL *P,
+//								__global REAL *RHS,
+//								__global int *FLAG,
+//								int imax,
+//								int jmax,
+//								REAL rdx2,
+//								REAL rdy2,
+//								__global REAL *res_result,
+//								__local REAL *scratch)
+//{
+//	// shared reduction kernel 4
+//	imax = imax + 2;
+//	jmax = jmax + 2;
+//
+//	unsigned int local_size = get_local_size(0);
+//	unsigned int tid = get_local_id(0);
+//	unsigned int gid = get_group_id(0)*(local_size*2) + tid;
+//	
+//	int i = gid & (imax - 1);
+//	int j = gid >> (int)log2((float)jmax);
+//
+//	REAL add1, add2;
+//
+//	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+//		/* only fluid cells */
+//		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+//			add1 =	(P[(i+1)*jmax + j]-2*P[i*jmax + j]+P[(i-1)*jmax + j])*rdx2
+//					+ (P[i*jmax + j+1]-2*P[i*jmax + j]+P[i*jmax + j-1])*rdy2
+//					- RHS[i*jmax + j];
+//			add2 = (P[(i+1)*jmax + j + (local_size)]
+//						- 2*P[i*jmax + j + local_size]
+//						+ P[(i-1)*jmax + j + (local_size)])*rdx2
+//					+ (P[i*jmax + j+1 + local_size]
+//						- 2*P[i*jmax + j + local_size]
+//						+ P[i*jmax + j-1 + local_size])*rdy2
+//					- RHS[i*jmax + j + local_size];
+//						
+//			scratch[tid] = add1*add1 + add2*add2;
+//		} else {
+//		scratch[tid] = 0.0;
+//		}
+//	} else {
+//		scratch[tid] = 0.0;
+//	}
+//
+//	barrier(CLK_LOCAL_MEM_FENCE);
+//	
+//	for (int s = local_size/2; s>0; s >>= 1) {
+//		if (tid < s) {
+//			scratch[tid] += scratch[tid + s];
+//		}
+//		barrier(CLK_LOCAL_MEM_FENCE);
+//	}
+//
+//	if (tid == 0) {
+//		res_result[get_group_id(0)] = scratch[0];
+//	}
+//}
+
+//TODO bad results
+//__kernel
+//void POISSON_2_comp_res_kernel(	__global REAL *P,
+//								__global REAL *RHS,
+//								__global int *FLAG,
+//								int imax,
+//								int jmax,
+//								REAL rdx2,
+//								REAL rdy2,
+//								__global REAL *res_result,
+//								__local REAL *scratch)
+//{
+//	// shared reduction kernel 5
+//	imax = imax + 2; // imax == get_global_size(0)
+//	jmax = jmax + 2; // jmax == get_global_size(1)
+//
+//	unsigned int local_size = get_local_size(0);
+//	unsigned int tid = get_local_id(0);
+//	unsigned int gid = get_group_id(0)*(local_size*2) + tid;
+//	
+//	int i = gid & (imax - 1);
+//	int j = gid >> (int)log2((float)jmax);
+//
+//	REAL add1, add2;
+//
+//	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+//		/* only fluid cells */
+//		if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+//			add1 =	(P[(i+1)*jmax + j]-2*P[i*jmax + j]+P[(i-1)*jmax + j])*rdx2
+//					+ (P[i*jmax + j+1]-2*P[i*jmax + j]+P[i*jmax + j-1])*rdy2
+//					- RHS[i*jmax + j];
+//			add2 = (P[(i+1)*jmax + j + local_size]-2*P[i*jmax + j + local_size]+P[(i-1)*jmax + j + local_size])*rdx2
+//					+ (P[i*jmax + j+1 + local_size]-2*P[i*jmax + j + local_size]+P[i*jmax + j-1 + local_size])*rdy2
+//					- RHS[i*jmax + j + local_size];
+//						
+//			scratch[tid] = add1*add1 + add2*add2;
+//		} else {
+//		scratch[tid] = 0.0;
+//		}
+//	} else {
+//		scratch[tid] = 0.0;
+//	}
+//
+//	barrier(CLK_LOCAL_MEM_FENCE);
+//	
+//	for (int s = local_size/2; s>32; s >>= 1) {
+//		if (tid < s) {
+//			scratch[tid] += scratch[tid + s];
+//		}
+//		barrier(CLK_LOCAL_MEM_FENCE);
+//	}
+//
+//	if (tid < 32) {
+//		scratch[tid] += scratch[tid + 32];
+//		scratch[tid] += scratch[tid + 16];
+//		scratch[tid] += scratch[tid + 8];
+//		scratch[tid] += scratch[tid + 4];
+//		scratch[tid] += scratch[tid + 2];
+//		scratch[tid] += scratch[tid + 1];
+//	}
+//
+//
+//	if (tid == 0) {
+//		res_result[get_group_id(0)] = scratch[0];
+//	}
+//}
 
 __kernel
 void ADAP_UV_kernel(__global REAL *U,

@@ -327,40 +327,41 @@ void INIT_FLAG(char *problem,int **FLAG,int imax,int jmax,REAL delx,REAL dely,
 			}
 	}
 
+	// TODO Uncomment this part
 	/* Printing the geometry of the fluid domain */
 	/*-------------------------------------------*/
-	printf ("\nGeometry of the fluid domain:\n\n");
-	for(j=jmax+1;j>=0;j--)
-	{
-		for(i=0;i<=imax+1;i++)
-			if (!(FLAG[i][j] & C_F))
-				printf("**");
-			else      
-				printf("  ");                                    
-		printf ("\n");
-	}
-	printf ("\n");
-	printf ("\n");
-	/* FLAGs for boundary cells */
-	/*--------------------------*/
-	(*ibound) = 0;
-	for(i=1;i<=imax;i++)
-		for(j=1;j<=jmax;j++){
-			if (!(FLAG[i][j] & C_F))
-				(*ibound)++;
-			FLAG[i][j] += ((FLAG[i-1][j] & C_F)*B_W + (FLAG[i+1][j] & C_F)*B_O +
-				(FLAG[i][j-1] & C_F)*B_S + (FLAG[i][j+1] & C_F)*B_N)/C_F;
-			switch (FLAG[i][j]){
-			case 0x0003:
-			case 0x0007:
-			case 0x000b:
-			case 0x000c:
-			case 0x000d:
-			case 0x000e:
-			case 0x000f:{           
-				printf("Illegal obstacle cell [%d][%d]\n",i,j);
-				exit(0);
-						}  
-			}
-		}
+	//printf ("\nGeometry of the fluid domain:\n\n");
+	//for(j=jmax+1;j>=0;j--)
+	//{
+	//	for(i=0;i<=imax+1;i++)
+	//		if (!(FLAG[i][j] & C_F))
+	//			printf("**");
+	//		else      
+	//			printf("  ");                                    
+	//	printf ("\n");
+	//}
+	//printf ("\n");
+	//printf ("\n");
+	///* FLAGs for boundary cells */
+	///*--------------------------*/
+	//(*ibound) = 0;
+	//for(i=1;i<=imax;i++)
+	//	for(j=1;j<=jmax;j++){
+	//		if (!(FLAG[i][j] & C_F))
+	//			(*ibound)++;
+	//		FLAG[i][j] += ((FLAG[i-1][j] & C_F)*B_W + (FLAG[i+1][j] & C_F)*B_O +
+	//			(FLAG[i][j-1] & C_F)*B_S + (FLAG[i][j+1] & C_F)*B_N)/C_F;
+	//		switch (FLAG[i][j]){
+	//		case 0x0003:
+	//		case 0x0007:
+	//		case 0x000b:
+	//		case 0x000c:
+	//		case 0x000d:
+	//		case 0x000e:
+	//		case 0x000f:{           
+	//			printf("Illegal obstacle cell [%d][%d]\n",i,j);
+	//			exit(0);
+	//					}  
+	//		}
+	//	}
 }
