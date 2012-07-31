@@ -30,7 +30,7 @@
 #define ON_CPU_1_RELAX
 #define ON_CPU_1_RES
 #define ON_GPU_2_COPY
-#define ON_CPU_2_RELAX
+#define ON_GPU_2_RELAX
 #define ON_GPU_2_RES
 
 #define TIME_WITH_MEM
@@ -1159,10 +1159,10 @@ int main(int argc, char *argv[])
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 2, sizeof(cl_mem), &FLAG_d);
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 3, sizeof(int), &imax);
 					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 4, sizeof(int), &jmax);
-					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 5, sizeof(REAL), &delx);
-					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 6, sizeof(REAL), &dely);
-					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 7, sizeof(REAL), &omg);
-					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 8, sizeof(REAL)*globalWorkSize1d[0], NULL);
+					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 5, sizeof(REAL), &rdx2);
+					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 6, sizeof(REAL), &rdy2);
+					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 7, sizeof(REAL), &beta_2);
+					status |= clSetKernelArg(POISSON_2_relaxation_kernel, 8, sizeof(REAL), &omg);
 					if (status != CL_SUCCESS) {
 						printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 						exit(-1);

@@ -331,12 +331,45 @@ void POISSON_2_relaxation_kernel(	__global REAL *P,
 									__global int *FLAG,
 									int imax,
 									int jmax,
-									REAL delx,
-									REAL dely,
-									REAL omg,
-									__local REAL *shared)
+									REAL rdx2,
+									REAL rdy2,
+									REAL beta_2,
+									REAL omg)
 {
+	imax = imax + 2;
+	jmax = jmax + 2;
 
+	unsigned int gid = get_global_id(0);
+	
+	int i, j;
+
+	//if (gid == 0) {
+		for (i = 1; i <= imax-2; i++) {
+			for (j = 1; j <= jmax-2; j++) {
+				if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+					P[i*jmax + j] = (1.-omg)*P[i*jmax + j]
+						- beta_2 * 
+							((P[(i+1)*jmax + j] + P[(i-1)*jmax + j]) * rdx2 +
+							 (P[i*jmax + j+1] + P[i*jmax + j-1]) * rdy2
+						- RHS[i*jmax + j]);
+				}
+			}
+		}
+	//}
+}
+
+//__kernel
+//void POISSON_2_relaxation_kernel(	__global REAL *P,
+//									__global REAL *RHS,
+//									__global int *FLAG,
+//									int imax,
+//									int jmax,
+//									REAL delx,
+//									REAL dely,
+//									REAL omg,
+//									__local REAL *shared)
+//{
+//
 //	int xmax = imax + 2;
 //	int ymax = jmax + 2;
 //
@@ -468,7 +501,7 @@ void POISSON_2_relaxation_kernel(	__global REAL *P,
 //	//		}
 //	//	}
 //	//}
-}
+//}
 
 //__kernel
 //void POISSON_2_comp_res_kernel(	__global REAL *P,
