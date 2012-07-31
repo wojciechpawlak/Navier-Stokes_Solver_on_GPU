@@ -478,10 +478,34 @@ void POISSON_2_relaxation_kernel(	__global REAL *P,
 //								int jmax,
 //								REAL rdx2,
 //								REAL rdy2,
-//								__global REAL *res_result,
-//								__local REAL *scratch)
+//								__global REAL *res)
 //{
-//	// shared reduction kernel 2
+//	// shared reduction kernel 0 - naive
+//	imax = imax + 2;
+//	jmax = jmax + 2;
+//
+//	unsigned int gid = get_global_id(0);
+//
+//	int i, j;
+//	REAL add;
+//
+//	if (gid == 0) {
+//		*res = 0.0;
+//
+//		for (i = 1; i <= imax-2; i++) {
+//			for (j = 1; j <= jmax-2; j++) {
+//				if ((FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < 0x0100)) {
+//					add =	(P[(i+1)*jmax + j]-2*P[i*jmax + j]+P[(i-1)*jmax + j])*rdx2
+//						+ (P[i*jmax + j+1]-2*P[i*jmax + j]+P[i*jmax + j-1])*rdy2
+//						- RHS[i*jmax + j];
+//
+//					*res += add * add;
+//
+//				}
+//			}
+//		}
+//	}
+//
 //}
 
 

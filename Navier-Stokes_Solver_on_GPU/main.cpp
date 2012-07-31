@@ -358,6 +358,10 @@ int main(int argc, char *argv[])
 	cl_mem P_d;
 	cl_mem p0_result_d;
 	cl_mem res_result_d;
+
+#ifdef ON_GPU_2_RES_NAIVE
+	cl_mem res_d;
+#endif
 	// Allocate memory for data on device
 
 	// Create a buffer object (U_d)
@@ -440,6 +444,15 @@ int main(int argc, char *argv[])
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
 		exit(-1);
 	}
+#ifdef ON_GPU_2_RES_NAIVE
+	// Create a buffer object for scalar value for residual computation
+	res_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
+		sizeof(REAL), &res, &status);
+	if (status != CL_SUCCESS || res_d == NULL) {
+		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
+#endif
 
 	// Create a buffer object for vector of partial results
 	// for residual computation
@@ -692,6 +705,11 @@ int main(int argc, char *argv[])
 
 	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
 		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
+
+#ifdef ON_GPU_2_RES_NAIVE
+	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
+		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
+#endif
 
 	if (status != CL_SUCCESS) {
 		printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -1187,6 +1205,40 @@ int main(int argc, char *argv[])
 						}
 					}		
 
+#endif
+
+#ifdef ON_GPU_2_RES_NAIVE
+
+
+					// Associate the input and output buffers with the POISSON_2_comp_res_naive_kernel 
+					status = clSetKernelArg(POISSON_2_comp_res_kernel, 0, sizeof(cl_mem), &P_d);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 1, sizeof(cl_mem), &RHS_d);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 2, sizeof(cl_mem), &FLAG_d);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 3, sizeof(int), &imax);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 4, sizeof(int), &jmax);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 5, sizeof(REAL), &rdx2);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 6, sizeof(REAL), &rdy2);
+					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 7, sizeof(cl_mem), &res_d);
+					if (status != CL_SUCCESS) {
+						printf("clSetKernelArg failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
+
+					// Execute the POISSON_2_comp_res_kernel
+					status = clEnqueueNDRangeKernel(cmdQueue, POISSON_2_comp_res_kernel, 1,
+						NULL, globalWorkSize1d, localWorkSize1d, 0, NULL, &event);
+					if(status != CL_SUCCESS) {
+						printf("clEnqueueNDRangeKernel failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
+
+					// Read the final result from reduction kernel
+					status = clEnqueueReadBuffer(cmdQueue, res_d, CL_TRUE, 0,
+						sizeof(REAL), &res, 0, NULL, NULL);
+					if (status != CL_SUCCESS) {
+						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
+						exit(-1);
+					}
 #endif
 
 #ifdef ON_GPU_2_RES
@@ -1691,7 +1743,9 @@ int main(int argc, char *argv[])
 	clReleaseMemObject(P_d);
 	clReleaseMemObject(p0_result_d);
 	clReleaseMemObject(res_result_d);
-
+#ifdef ON_GPU_2_RES_NAIVE
+	clReleaseMemObject(res_d);
+#endif
 	clReleaseKernel(FG_kernel);
 	clReleaseKernel(TEMP_kernel);
 	clReleaseProgram(program);
