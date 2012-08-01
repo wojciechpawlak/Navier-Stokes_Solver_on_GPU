@@ -299,7 +299,7 @@ bool compare_array(REAL** A1, REAL* A2, int m, int n)
 		}
 	}  
 
-	printf("%10.10f\t%10.10f\n", sum1, sum2);
+	printf("CPU: %10.10f\tGPU: %10.10f\t", sum1, sum2);
 	if (fabs(sum1 - sum2) < 10e-5)
 		return true;
 	else

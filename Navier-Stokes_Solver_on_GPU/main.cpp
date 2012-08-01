@@ -16,25 +16,36 @@
 #include "visual.h"
 #include "surface.h"
 
+// Workgroup sizes
 #define BLOCK_SIZE_2D_1 16
 #define BLOCK_SIZE_2D_2 16
 #define BLOCK_SIZE_1D 256
 
+// Problem options
+#define DCAV // used as benchmark problem (simplest)
+
+// Parts of simulations
 #define GPU
 #define CPU
 #define VERIFY
 //#define PRINT
 //#define LOG
+//#define VISUAL
 
+// Parts of GPU execution
 #define ON_GPU_P0
 #define ON_CPU_1_RELAX
 #define ON_CPU_1_RES
 #define ON_GPU_2_COPY
-#define ON_GPU_2_RELAX
-#define ON_GPU_2_RES
+#define ON_CPU_2_RELAX
+//#define ON_GPU_2_RES // commented - no residual computation
 
+// Time calculation
 #define TIME_WITH_MEM
 //#define TIME_WITHOUT_MEM
+
+// Name of source file with OpenCL kernels
+const char *sourceFile = "kernels.cl";
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +59,7 @@ int main(int argc, char *argv[])
 #endif
 	
 	/*
-	 * Navier-Stokes Solver Initialization
+	 * Navier-Stokes Solver Initialization (both for CPU and GPU implementations)
 	 */
 	char problem[30];
 	char infile[30], outfile[30];
@@ -124,7 +135,7 @@ int main(int argc, char *argv[])
 		INIT_UVP(problem, U, V, P, TEMP, imax, jmax, UI, VI, TI); 
 		INIT_FLAG(problem, FLAG, imax, jmax, delx, dely, &ibound);
 	}
-
+#ifdef VISUAL
 	/* Initialize particles for streaklines or particle tracing */
 	/*----------------------------------------------------------*/
 	//if (strcmp(streakfile, "none") || strcmp(tracefile, "none")) {
@@ -137,6 +148,7 @@ int main(int argc, char *argv[])
 	//	Particlelines = INIT_PARTICLES(&N, imax, jmax, delx, dely,
 	//		ppc, problem, U, V);
 	//}
+#endif
 
 	/* Set initial values for boundary conditions				*/
 	/* and specific boundary conditions, depending on "problem" */      
@@ -146,8 +158,6 @@ int main(int argc, char *argv[])
 
 #ifdef GPU
 
-	/*--------------------------------------------------------------------------------*/
-
 	/*
 	 * OpenCL Initialization
 	 */
@@ -155,7 +165,7 @@ int main(int argc, char *argv[])
 	cl_int status;
 
 	//-----------------------------------------------------
-	// STEP 1: Discover and initialize the platforms
+	// Discover and initialize the platforms
 	//-----------------------------------------------------
 	cl_uint numPlatforms = 0;
 	cl_platform_id *platforms = NULL;
@@ -188,18 +198,17 @@ int main(int argc, char *argv[])
 	}
 
 	// Print basic information about each platform
-	//TODO uncommment
-	//printPlatforms(platforms, numPlatforms, status);
+	//printPlatforms(platforms, numPlatforms, status); 	// uncommment for platform information
 
 	//-----------------------------------------------------
-	// STEP 2: Discover and initialize the devices
+	// Discover and initialize the devices
 	//----------------------------------------------------- 
 
 	cl_uint numDevices = 0;
 	cl_device_id *devices = NULL;
 
 	// Retrive the number of devices present
-	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, //TODO CL_DEVICE_TYPE_ALL
+	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, //TODO CL_DEVICE_TYPE_ALL for all types
 		0, NULL, &numDevices);						
 	if (status != CL_SUCCESS) {
 		printf("clGetDeviceIDs failed: %s\n", cluErrorString(status));
@@ -228,14 +237,11 @@ int main(int argc, char *argv[])
 	} 
 
 	// Print basic information about each device
-	//TODO uncomment
-	// printDevices(devices, numDevices, status);
-
-	//TODO uncomment
-	// getDeviceInfo(devices, numDevices);
+	// printDevices(devices, numDevices, status); 	// uncomment to get device information
+	// getDeviceInfo(devices, numDevices); 	// uncomment for detailed device information
 
 	//-----------------------------------------------------
-	// STEP 3: Create a context
+	// Create a context
 	//----------------------------------------------------- 
 
 	cl_context context = NULL;
@@ -248,7 +254,7 @@ int main(int argc, char *argv[])
 	}
 
 	//-----------------------------------------------------
-	// STEP 4: Create a command queue
+	// Create a command queue
 	//----------------------------------------------------- 
 
 	cl_command_queue cmdQueue = NULL;
@@ -261,11 +267,11 @@ int main(int argc, char *argv[])
 	}
 
 	//-----------------------------------------------------
-	// STEP 5: Create device buffers
+	// Create device buffers
 	//----------------------------------------------------- 
 
-	// Elements in each array - U, V, F, G
-	const int elements = (imax+2) * (jmax+2);
+	// Computer the number of elements in grids used
+	const int elements = (imax+2) * (jmax+2); // size of grid + ghost cells on boundaries
 
 	// Compute the size of the data 
 	size_t datasize = sizeof(REAL)*elements;
@@ -294,22 +300,27 @@ int main(int argc, char *argv[])
 	int MAX_THREADS_PR_WORKGROUP = buf2;
 	int THREADS_PR_WORKGROUP = argc > 2 ? nextPow2(atoi(argv[2])) : MAX_THREADS_PR_WORKGROUP;
 
-	printf("Threads per work group = %d. \n", THREADS_PR_WORKGROUP);
+	printf("Threads per work group = %d.\n\n", THREADS_PR_WORKGROUP);
 
+	// Compute the number of workgroups for 1D and 2D worksizes
 	int NUM_WORKGROUPS_2D = (getGlobalSize(BLOCK_SIZE_2D_1, imax) * getGlobalSize(BLOCK_SIZE_2D_2, jmax))
 		/ (BLOCK_SIZE_2D_1*BLOCK_SIZE_2D_2);
 	int NUM_WORKGROUPS_1D = (getGlobalSize(BLOCK_SIZE_2D_1, imax) * getGlobalSize(BLOCK_SIZE_2D_2, jmax))
 		/ BLOCK_SIZE_1D;
 
-	printf("Work groups allocated (%dx%d) = %d\n\n", BLOCK_SIZE_2D_1, BLOCK_SIZE_2D_2, NUM_WORKGROUPS_2D);
-	printf("Work groups allocated (%d) = %d\n\n", BLOCK_SIZE_1D, NUM_WORKGROUPS_1D);
+	printf("Work groups allocated for 2D block size (%d, %d , 1) = %d\n", BLOCK_SIZE_2D_1, BLOCK_SIZE_2D_2, NUM_WORKGROUPS_2D);
+	printf("Work groups allocated for 1D block size (%d, 1, 1) = %d\n\n", BLOCK_SIZE_1D, NUM_WORKGROUPS_1D);
 
+	//////////////////////////////////////////////////////////////////////////
 
-
+	//-----------------------------------------------------
 	// Allocate memory for host buffers for GPU execution
+	//-----------------------------------------------------
 	int *FLAG_h;
-	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h, *RHS_h, *P_h;
-	REAL *p0_result_h, *res_result_h;
+	REAL *U_h, *V_h, *TEMP_h, *F_h, *G_h, *RHS_h, *P_h, *p0_result_h;
+#ifdef ON_GPU_2_RES 
+	REAL *res_result_h;
+#endif
 
 	FLAG_h	= (int *) malloc(datasize_int);
 	
@@ -321,7 +332,10 @@ int main(int argc, char *argv[])
 	RHS_h	= (REAL *) malloc(datasize);
 	P_h		= (REAL *) malloc(datasize);
 	p0_result_h = (REAL *) malloc(NUM_WORKGROUPS_1D*sizeof(REAL));
+
+#ifdef ON_GPU_2_RES
 	res_result_h = (REAL *) malloc(NUM_WORKGROUPS_1D*sizeof(REAL));
+#endif
 
 	//TODO initialize them separately
 	// Copy initial contents for host buffers from original arrays
@@ -344,7 +358,11 @@ int main(int argc, char *argv[])
 	copy_array_real(ZETA,	ZETA_h, imax-1, jmax-1);
 	copy_array_real(HEAT,	HEAT_h, imax+1,	jmax+1);
 
+	//////////////////////////////////////////////////////////////////////////
 
+	//-----------------------------------------------------
+	// Allocate memory for data on device
+	//-----------------------------------------------------
 
 	// Input and Output arrays on the device
 	cl_mem U_d;
@@ -357,12 +375,14 @@ int main(int argc, char *argv[])
 	cl_mem RHS_d;
 	cl_mem P_d;
 	cl_mem p0_result_d;
+
+#ifdef ON_GPU_2_RES 
 	cl_mem res_result_d;
+#endif
 
 #ifdef ON_GPU_2_RES_NAIVE
 	cl_mem res_d;
 #endif
-	// Allocate memory for data on device
 
 	// Create a buffer object (U_d)
 	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
@@ -444,6 +464,7 @@ int main(int argc, char *argv[])
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
 		exit(-1);
 	}
+
 #ifdef ON_GPU_2_RES_NAIVE
 	// Create a buffer object for scalar value for residual computation
 	res_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
@@ -454,6 +475,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
+#ifdef ON_GPU_RES 
 	// Create a buffer object for vector of partial results
 	// for residual computation
 	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
@@ -462,21 +484,22 @@ int main(int argc, char *argv[])
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
 		exit(-1);
 	}
+#endif
+
+	//////////////////////////////////////////////////////////////////////////
 
 	//-----------------------------------------------------
-	// STEP 7: Create and compile the program
+	// Create and compile the program
 	//----------------------------------------------------- 
 
 	cl_program program;
 
 	char *programSource;
-	const char *sourceFile = "kernels.cl";
 
 	// Read in the source code of the program
 	programSource = READ_kernelSource(sourceFile);
 
-	// Create a program.
-	// The 'source' string is the code from the FG_kernel.cl file.
+	// Create a program
 	program = clCreateProgramWithSource(context, 1, (const char**)&programSource, 
 		NULL, &status);
 	if (status != CL_SUCCESS) {
@@ -484,7 +507,7 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	// Build (compile & link) the program for the devices.
+	// Build (compile & link) the program for the devices
 	status = clBuildProgram(program, numDevices, devices, NULL, NULL, NULL);
 
 	// Print build errors if any
@@ -520,10 +543,10 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 	else {
-		printf("No build errors\n");
+		printf("No kernel build errors\n\n");
 	}
 
-	/*--------------------------------------------------------------------------------*/
+	//////////////////////////////////////////////////////////////////////////
 	
 	/*
 	 * GPU Execution
@@ -534,15 +557,15 @@ int main(int argc, char *argv[])
 	clock_t start_gpu, stop_gpu;
 
 	//-----------------------------------------------------
-	// STEP 8: Create the kernel
+	// Create the kernel
 	//----------------------------------------------------- 
 
 	cl_kernel TEMP_kernel = NULL;
 	cl_kernel FG_kernel = NULL;
 	cl_kernel RHS_kernel = NULL;
 	cl_kernel POISSON_p0_kernel = NULL;
-	//cl_kernel POISSON_1_relaxation_kernel = NULL;
-	//cl_kernel POISSON_1_comp_res_kernel = NULL;
+	cl_kernel POISSON_1_relaxation_kernel = NULL;
+	cl_kernel POISSON_1_comp_res_kernel = NULL;
 	cl_kernel POISSON_2_copy_boundary_kernel = NULL;
 	cl_kernel POISSON_2_relaxation_kernel = NULL;
 	cl_kernel POISSON_2_comp_res_kernel = NULL;
@@ -580,18 +603,18 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a kernel for relaxation for pressure P (method 2)
-	//POISSON_1_relaxation_kernel = clCreateKernel(program, "POISSON_1_relaxation_kernel", &status);
-	//if (status != CL_SUCCESS) {
-	//	printf("clCreateKernel failed: %s\n", cluErrorString(status));
-	//	exit(-1);
-	//}
+	POISSON_1_relaxation_kernel = clCreateKernel(program, "POISSON_1_relaxation_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
 
 	// Create a kernel for computation of norm of residual for pressure P (method 1)
-	//POISSON_1_comp_res_kernel = clCreateKernel(program, "POISSON_1_comp_res_kernel", &status);
-	//if (status != CL_SUCCESS) {
-	//	printf("clCreateKernel failed: %s\n", cluErrorString(status));
-	//	exit(-1);
-	//}
+	POISSON_1_comp_res_kernel = clCreateKernel(program, "POISSON_1_comp_res_kernel", &status);
+	if (status != CL_SUCCESS) {
+		printf("clCreateKernel failed: %s\n", cluErrorString(status));
+		exit(-1);
+	}
 
 	// Create a kernel for copying values a boundary cells for pressure P (method 2)
 	POISSON_2_copy_boundary_kernel = clCreateKernel(program, "POISSON_2_copy_boundary_kernel", &status);
@@ -643,7 +666,7 @@ int main(int argc, char *argv[])
 	}
 
 	//-----------------------------------------------------
-	// STEP 10: Configure the work-item structure
+	// Configure the work-item structure
 	//----------------------------------------------------- 
 
 	// Define an index space (global work size) of work items for execution.
@@ -662,15 +685,13 @@ int main(int argc, char *argv[])
 	printf("Local Work Size 1D: %d\n", localWorkSize1d[0]);
 	printf("Global Work Size 1D: %d\n\n", globalWorkSize1d[0]);
 
-
-
-
 	//////////////////////////////////////////////////////////////////////////
 
+	printf("GPU execution - start\n");
 	start_gpu = clock();
 
 	//-----------------------------------------------------
-	// STEP 6: Write host data to device buffers
+	// Write host data to device buffers
 	//----------------------------------------------------- 
 
 	status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_TRUE, 0, 
@@ -703,8 +724,10 @@ int main(int argc, char *argv[])
 	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_TRUE, 0, 
 		NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 
+#ifdef ON_GPU_2_RES
 	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
 		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
+#endif
 
 #ifdef ON_GPU_2_RES_NAIVE
 	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
@@ -716,6 +739,8 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
+	//////////////////////////////////////////////////////////////////////////
+
 	/*
 	 * Main time loop
 	 */
@@ -723,6 +748,8 @@ int main(int argc, char *argv[])
 		COMP_delt(&delt, t, imax, jmax, delx, dely, U, V, Re, Pr, tau, &write,
 			del_trace, del_inj, del_streak, del_vec);    
 
+
+#ifndef DCAV
 		//TODO make it work for other problems than dcav
 		/* Determine fluid cells for free boundary problems */
 		/* and set boundary values at free surface          */
@@ -736,21 +763,20 @@ int main(int argc, char *argv[])
 		//	SET_UVP_SURFACE(U, V, P, FLAG, GX, GY,
 		//		imax, jmax, Re, delx, dely, delt);
 		//} else {
-			ifull = imax*jmax-ibound;
+		//	ifull = imax*jmax-ibound;
 		//}
+#else
+			ifull = imax*jmax-ibound;
+#endif
 
-		//-----------------------------------------------------
-		// STEP 11: Enqueue the kernel for execution
-		//-----------------------------------------------------
+		//---------------------------------------------------------------
+		//  Set arguments for kernels and enqueue them for execution
+		//---------------------------------------------------------------
 
 		cl_event event;
 
 		/* Compute new temperature */
 		/*-------------------------*/
-
-		//-----------------------------------------------------
-		// STEP 9: Set arguments for kernels
-		//----------------------------------------------------- 
 
 		// Associate the input and output buffers with the TEMP_kernel 
 		status = clSetKernelArg(TEMP_kernel, 0, sizeof(cl_mem), &U_d);
@@ -841,8 +867,6 @@ int main(int argc, char *argv[])
 		}
 		//clWaitForEvents(1, &event);
 
-		/* Solve the pressure equation by successive over relaxation */
-		/*-----------------------------------------------------------*/
 		//TODO because of CPU versions of Relaxation and Comp Res kernels
 		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
 			datasize, RHS_h, 0, NULL, NULL);
@@ -851,7 +875,10 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 
-		int iter;
+		/* Solve the pressure equation by successive over relaxation */
+		/*-----------------------------------------------------------*/
+
+		int iter = 0;
 
 		if (ifull > 0) {
 			int iimax = imax + 2;
@@ -866,9 +893,7 @@ int main(int argc, char *argv[])
 						p0 += P_h[i*jjmax + j]*P_h[i*jjmax + j];
 					}
 				}
-			}
-
-			
+			}	
 #endif
 
 #ifdef ON_GPU_P0
@@ -884,7 +909,7 @@ int main(int argc, char *argv[])
 				exit(-1);
 			}
 
-			//// Execute the POISSON_p0_kernel kernel
+			// Execute the POISSON_p0_kernel kernel
 			status = clEnqueueNDRangeKernel(cmdQueue, POISSON_p0_kernel, 1,
 				NULL, globalWorkSize1d, localWorkSize1d, 0, NULL, &event);
 			if(status != CL_SUCCESS) {
@@ -923,6 +948,9 @@ int main(int argc, char *argv[])
 			/* SOR-iteration */
 			/*---------------*/
 			for (iter = 1; iter <= itermax; iter++) {	
+				
+				res = 0.0;
+
 				if (p_bound == 1) {
 
 #ifdef ON_CPU_1_RELAX
@@ -999,6 +1027,13 @@ int main(int argc, char *argv[])
 					//	}
 					//}
 
+					//res = sqrt(res/ifull)/p0;
+
+					///* convergence? */
+					//if (res < eps) {
+					//	break;
+					//}
+
 #endif
 
 #ifdef ON_GPU_1_RES
@@ -1033,7 +1068,6 @@ int main(int argc, char *argv[])
 					//}
 
 					////clWaitForEvents(1, &event);
-#endif
 
 					//res = sqrt(res/ifull)/p0;
 
@@ -1041,6 +1075,7 @@ int main(int argc, char *argv[])
 					//if (res < eps) {
 					//	break;
 					//}
+#endif
 
 				} else if (p_bound == 2) {
 
@@ -1187,7 +1222,6 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_CPU_2_RES
-
 					REAL add;
 
 					res = 0.0;
@@ -1203,13 +1237,17 @@ int main(int argc, char *argv[])
 								
 							}
 						}
-					}		
+					}	
 
+					res = sqrt(res/ifull)/p0;
+
+					// convergence?
+					if (res < eps) {
+						break;
+					}
 #endif
 
 #ifdef ON_GPU_2_RES_NAIVE
-
-
 					// Associate the input and output buffers with the POISSON_2_comp_res_naive_kernel 
 					status = clSetKernelArg(POISSON_2_comp_res_kernel, 0, sizeof(cl_mem), &P_d);
 					status |= clSetKernelArg(POISSON_2_comp_res_kernel, 1, sizeof(cl_mem), &RHS_d);
@@ -1238,6 +1276,13 @@ int main(int argc, char *argv[])
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
 						exit(-1);
+					}
+
+					res = sqrt(res/ifull)/p0;
+
+					// convergence?
+					if (res < eps) {
+						break;
 					}
 #endif
 
@@ -1284,18 +1329,16 @@ int main(int argc, char *argv[])
 					{
 						res += res_result_h[group_id];
 					}
-#endif					
+
 					res = sqrt(res/ifull)/p0;
-					
 
 					// convergence?
 					if (res < eps) {
 						break;
 					}
+#endif					
 				}
-
 			}
-			
 		}
 
 		// End of SOR iteration
@@ -1409,14 +1452,15 @@ int main(int argc, char *argv[])
 		}
 		//clWaitForEvents(1, &event);
 
+#ifndef DCAV
 		//TODO other problems than dcav
 		//if (!strcmp(problem, "drop") || !strcmp(problem, "dam") ||
 		//	!strcmp(problem, "molding") || !strcmp(problem, "wave")) {
 		//	SET_UVP_SURFACE(U_h, V_h, P_h, FLAG_h, GX, GY, imax, jmax, Re, delx, dely, delt);
 		//}
+#endif
 
 #ifdef VISUAL
-
 		//TODO Data Visualisation
 		/* Write data for visualization */
 		/*------------------------------*/
@@ -1443,9 +1487,11 @@ int main(int argc, char *argv[])
 	/*
 	 * End of main time loop
 	 */
+
+	//////////////////////////////////////////////////////////////////////////
 	
 	//-----------------------------------------------------
-	// STEP 12: Read the output buffer back to the host
+	// Read the output buffers back to the host
 	//----------------------------------------------------- 
 
 	// Read the OpenCL output buffer (U_d) to the host output array (U_h)
@@ -1475,13 +1521,13 @@ int main(int argc, char *argv[])
 	}
 
 	stop_gpu = clock();
+	printf("GPU execution - finish\n\n");
 
 	timer_gpu = (double) (stop_gpu - start_gpu) / CLOCKS_PER_SEC;
 
-	printf("  GPU time    : %.4f (ms)\n", timer_gpu);
+	//////////////////////////////////////////////////////////////////////////
 
 #ifdef VISUAL
-
 	//TODO input for GPU
 	//if (strcmp(vecfile,"none"))
 	//{     
@@ -1493,11 +1539,9 @@ int main(int argc, char *argv[])
 	//if (strcmp(outfile,"none")) {
 	//	WRITE_txt(U, V, P, TEMP, FLAG, imax, jmax, outfile);
 	//}
-
 #endif
 
-	#ifdef PRINT
-
+#ifdef PRINT
 	print_1darray_to_file(U_h, imax+2, jmax+2, "U_h.txt");
 	print_1darray_to_file(V_h, imax+2, jmax+2, "V_h.txt");
 	print_1darray_to_file(TEMP_h, imax+2, jmax+2, "TEMP_h.txt");
@@ -1509,12 +1553,11 @@ int main(int argc, char *argv[])
 	//print_1darray_to_file(ZETA_h, imax, jmax, "ZETA_h.txt");
 	//print_1darray_to_file(HEAT_h, imax+1, jmax+1, "HEAT_h.txt");
 	print_1darray_int_to_file(FLAG_h, imax+2, jmax+2, "FLAG_h.txt");
-
-	#endif
+#endif
 
 #endif
 
-	/*--------------------------------------------------------------------------------*/
+	//////////////////////////////////////////////////////////////////////////
 
 #ifdef CPU
 
@@ -1526,6 +1569,7 @@ int main(int argc, char *argv[])
 	double timer_cpu;
 	clock_t start_cpu, stop_cpu;
 
+	printf("CPU execution - start\n");
 	start_cpu = clock();
 
 	res = 0.0;
@@ -1625,10 +1669,11 @@ int main(int argc, char *argv[])
 	 */
 
 	stop_cpu = clock();
+	printf("CPU execution - finish\n\n");
 
 	timer_cpu = (double) (stop_cpu - start_cpu) / CLOCKS_PER_SEC;
 
-	printf("  CPU time    : %.4f (ms)\n",timer_cpu);
+	//////////////////////////////////////////////////////////////////////////
 
 #ifdef VISUAL
 
@@ -1670,49 +1715,49 @@ int main(int argc, char *argv[])
 	 * Verification
 	 */
 
-	printf("U:\n");
+	printf("U: ");
 	if (compare_array(U, U_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
-	printf("V:\n");
+	printf("V: ");
 	if (compare_array(V, V_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
-	printf("TEMP:\n");
+	printf("TEMP: ");
 	if (compare_array(TEMP, TEMP_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
-	printf("F:\n");
+	printf("F: ");
 	if (compare_array(F, F_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
-	printf("G:\n");
+	printf("G: ");
 	if (compare_array(G, G_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
-	printf("RHS:\n");
+	printf("RHS: ");
 	if (compare_array(RHS, RHS_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
 		printf("FAILED\n");
 	}
 
-	printf("P:\n");
+	printf("P: ");
 	if (compare_array(P, P_h, imax+2, jmax+2)) {
 		printf("PASSED\n");
 	} else {
@@ -1720,14 +1765,17 @@ int main(int argc, char *argv[])
 	}
 
 	// Print timings
+	printf("\n");
+	printf("  GPU time    : %.4f (ms)\n", timer_gpu);
+	printf("  CPU time    : %.4f (ms)\n", timer_cpu);
 	printf("  Speedup %.2fx\n\n", timer_cpu/timer_gpu);
 	
 #endif
 
-	/*--------------------------------------------------------------------------------*/
+	//////////////////////////////////////////////////////////////////////////
 
 	//-----------------------------------------------------
-	// STEP 13: Release OpenCL resources
+	// Release resources
 	//----------------------------------------------------- 
 
 #ifdef GPU
@@ -1742,7 +1790,11 @@ int main(int argc, char *argv[])
 	clReleaseMemObject(G_d);
 	clReleaseMemObject(P_d);
 	clReleaseMemObject(p0_result_d);
+
+#ifdef ON_GPU_2_RES
 	clReleaseMemObject(res_result_d);
+#endif
+
 #ifdef ON_GPU_2_RES_NAIVE
 	clReleaseMemObject(res_d);
 #endif
@@ -1763,7 +1815,9 @@ int main(int argc, char *argv[])
 	free(RHS_h);
 	free(P_h);
 	free(p0_result_h);
+#ifdef ON_GPU_2_RES
 	free(res_result_h);
+#endif
 
 	FREE_RMATRIX(PSI_h,		0, imax,	0, jmax);
 	FREE_RMATRIX(ZETA_h,	1, imax-1,	1, jmax-1);

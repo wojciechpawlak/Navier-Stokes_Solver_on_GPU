@@ -205,16 +205,17 @@ void POISSON_p0_kernel(	__global REAL *P,
 	}
 }
 
-//__kernel
-//void POISSON_1_relaxation_kernel(	__global REAL *P,
-//									__global REAL *RHS,
-//									__global int *FLAG,
-//									int imax,
-//									int jmax,
-//									REAL delx,
-//									REAL dely,
-//									REAL omg)
-//{
+__kernel
+void POISSON_1_relaxation_kernel(	__global REAL *P,
+									__global REAL *RHS,
+									__global int *FLAG,
+									int imax,
+									int jmax,
+									REAL delx,
+									REAL dely,
+									REAL omg)
+{
+	  //TODO implement
 //	REAL rdx2, rdy2;
 //	REAL add, beta_2, beta_mod;
 //
@@ -244,18 +245,19 @@ void POISSON_p0_kernel(	__global REAL *P,
 //				(eps_N*P[i*jmax + j+1]+eps_S*P[i*jmax + j-1])*rdy2 - RHS[i*jmax + j]);
 //		}
 //	}
-//}
+}
 
-//__kernel
-//void POISSON_1_comp_res_kernel(	__global REAL *P,
-//								__global REAL *RHS,
-//								__global int *FLAG,
-//								int imax,
-//								int jmax,
-//								REAL delx,
-//								REAL dely,
-//								__global REAL *res)
-//{
+__kernel
+void POISSON_1_comp_res_kernel(	__global REAL *P,
+								__global REAL *RHS,
+								__global int *FLAG,
+								int imax,
+								int jmax,
+								REAL delx,
+								REAL dely,
+								__global REAL *res)
+{
+	 //TODO implement
 //	imax = imax + 2;
 //	jmax = jmax + 2;
 //
@@ -280,7 +282,7 @@ void POISSON_p0_kernel(	__global REAL *P,
 //			*res += add*add;
 //		}
 //	}
-//}
+}
 
 __kernel
 void POISSON_2_copy_boundary_kernel(__global REAL *P,
