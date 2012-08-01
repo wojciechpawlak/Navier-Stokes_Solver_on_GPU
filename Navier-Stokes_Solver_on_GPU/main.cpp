@@ -680,10 +680,10 @@ int main(int argc, char *argv[])
 
 	size_t globalWorkSize1d[] = {getGlobalSize(BLOCK_SIZE_1D, imax) * getGlobalSize(BLOCK_SIZE_1D, jmax)};
 
-	printf("Local Work Size 2D: %d %d\n", localWorkSize[0], localWorkSize[1]);
-	printf("Global Work Size 2D: %d %d\n", globalWorkSize[0], globalWorkSize[1]);
-	printf("Local Work Size 1D: %d\n", localWorkSize1d[0]);
-	printf("Global Work Size 1D: %d\n\n", globalWorkSize1d[0]);
+	printf("Local Work Size 2D: (%d, %d, 1)\n", localWorkSize[0], localWorkSize[1]);
+	printf("Global Work Size 2D: (%d, %d, 1)\n", globalWorkSize[0], globalWorkSize[1]);
+	printf("Local Work Size 1D: (%d, 1, 1)\n", localWorkSize1d[0]);
+	printf("Global Work Size 1D: (%d, 1, 1)\n\n", globalWorkSize1d[0]);
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -766,7 +766,7 @@ int main(int argc, char *argv[])
 		//	ifull = imax*jmax-ibound;
 		//}
 #else
-			ifull = imax*jmax-ibound;
+		ifull = imax*jmax-ibound;
 #endif
 
 		//---------------------------------------------------------------
@@ -1689,7 +1689,7 @@ int main(int argc, char *argv[])
 	//}
 #endif
 
-	#ifdef PRINT
+#ifdef PRINT
 
 	print_array_to_file(U, imax+2, jmax+2, "U.txt");
 	print_array_to_file(V, imax+2, jmax+2, "V.txt");
@@ -1703,7 +1703,7 @@ int main(int argc, char *argv[])
 	//print_array_to_file(HEAT, imax+1, jmax+1, "HEAT.txt");
 	print_array_int_to_file(FLAG, imax+2, jmax+2, "FLAG.txt");
 
-	#endif
+#endif
 
 #endif
 
@@ -1766,8 +1766,8 @@ int main(int argc, char *argv[])
 
 	// Print timings
 	printf("\n");
-	printf("  GPU time    : %.4f (ms)\n", timer_gpu);
-	printf("  CPU time    : %.4f (ms)\n", timer_cpu);
+	printf("  GPU time    : %.4f seconds\n", timer_gpu);
+	printf("  CPU time    : %.4f seconds\n", timer_cpu);
 	printf("  Speedup %.2fx\n\n", timer_cpu/timer_gpu);
 	
 #endif

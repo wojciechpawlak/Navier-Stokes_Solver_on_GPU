@@ -282,26 +282,26 @@ int POISSON(REAL **P,REAL **RHS,int **FLAG,
 
 			/* computation of residual */
 			/*-------------------------*/
-			*res = 0.0;
-			for (i=1;i<=imax;i++) {
-				for (j=1;j<=jmax;j++) {
-					/* only fluid cells */
-					if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)) {
-						add =  (P[i+1][j]-2*P[i][j]+P[i-1][j])*rdx2+
-							(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
-						
-						*res += add*add;
-					}
-				}
-			}
-			*res = sqrt((*res)/ifull)/p0;
-			
-			
-			/* convergence? */
-			/*--------------*/
-			if (*res<eps) {
-				return iter;
-			}
+			//*res = 0.0;
+			//for (i=1;i<=imax;i++) {
+			//	for (j=1;j<=jmax;j++) {
+			//		/* only fluid cells */
+			//		if ((FLAG[i][j] & C_F) && (FLAG[i][j] < 0x0100)) {
+			//			add =  (P[i+1][j]-2*P[i][j]+P[i-1][j])*rdx2+
+			//				(P[i][j+1]-2*P[i][j]+P[i][j-1])*rdy2-RHS[i][j];
+			//			
+			//			*res += add*add;
+			//		}
+			//	}
+			//}
+			//*res = sqrt((*res)/ifull)/p0;
+			//
+			//
+			///* convergence? */
+			///*--------------*/
+			//if (*res<eps) {
+			//	return iter;
+			//}
 		}
 	}
 
