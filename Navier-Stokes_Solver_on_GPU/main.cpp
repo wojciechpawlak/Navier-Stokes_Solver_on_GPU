@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
 #endif
 
 	// Create a buffer object (U_d)
-	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, U_h, &status);
 	if (status != CL_SUCCESS || U_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -393,7 +393,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (V_d)
-	V_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+	V_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, V_h, &status);
 	if (status != CL_SUCCESS || V_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -401,7 +401,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (FLAG_d)
-	FLAG_d = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
+	FLAG_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
 		datasize_int, FLAG_h, &status);
 	if (status != CL_SUCCESS || FLAG_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (TEMP_d)
-	TEMP_d = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
+	TEMP_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
 		datasize, TEMP_h, &status);
 	if (status != CL_SUCCESS || TEMP_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (F_d)
-	F_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+	F_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, F_h, &status);
 	if (status != CL_SUCCESS || F_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (G_d)
-	G_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+	G_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, G_h, &status);
 	if (status != CL_SUCCESS || G_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -441,7 +441,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (RHS_d)
-	RHS_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+	RHS_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, RHS_h, &status);
 	if (status != CL_SUCCESS || RHS_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -449,7 +449,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (P_d)
-	P_d = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+	P_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		datasize, P_h, &status);
 	if (status != CL_SUCCESS || P_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 
 	// Create a buffer object for vector of partial results
 	// for initial pressure value computation
-	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
+	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
 		NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, &status);
 	if (status != CL_SUCCESS || p0_result_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -467,7 +467,7 @@ int main(int argc, char *argv[])
 
 #ifdef ON_GPU_2_RES_NAIVE
 	// Create a buffer object for scalar value for residual computation
-	res_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
+	res_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
 		sizeof(REAL), &res, &status);
 	if (status != CL_SUCCESS || res_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -478,7 +478,7 @@ int main(int argc, char *argv[])
 #ifdef ON_GPU_RES 
 	// Create a buffer object for vector of partial results
 	// for residual computation
-	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY|CL_MEM_COPY_HOST_PTR,
+	res_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
 		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, &status);
 	if (status != CL_SUCCESS || res_result_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -694,43 +694,43 @@ int main(int argc, char *argv[])
 	// Write host data to device buffers
 	//----------------------------------------------------- 
 
-	status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_TRUE, 0, 
+	status = clEnqueueWriteBuffer(cmdQueue, FLAG_d, CL_FALSE, 0, 
 		datasize_int, FLAG_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, U_d, CL_FALSE, 0, 
 		datasize, U_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, V_d, CL_FALSE, 0, 
 		datasize, V_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_d, CL_FALSE, 0, 
 		datasize, TEMP_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
 		datasize, TEMP_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, F_d, CL_FALSE, 0, 
 		datasize, F_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, G_d, CL_FALSE, 0, 
 		datasize, G_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, RHS_d, CL_FALSE, 0, 
 		datasize, RHS_h, 0, NULL, NULL);
 
-	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 		datasize, P_h, 0, NULL, NULL);
 	
-	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, p0_result_d, CL_FALSE, 0, 
 		NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 
 #ifdef ON_GPU_2_RES
-	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
 		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
 #endif
 
 #ifdef ON_GPU_2_RES_NAIVE
-	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_TRUE, 0, 
+	status |= clEnqueueWriteBuffer(cmdQueue, res_result_d, CL_FALSE, 0, 
 		NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
 #endif
 
@@ -868,7 +868,7 @@ int main(int argc, char *argv[])
 		//clWaitForEvents(1, &event);
 
 		//TODO because of CPU versions of Relaxation and Comp Res kernels
-		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
+		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_FALSE, 0,
 			datasize, RHS_h, 0, NULL, NULL);
 		if (status != CL_SUCCESS) {
 			printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -919,7 +919,7 @@ int main(int argc, char *argv[])
 			//clWaitForEvents(1, &event);
 
 			// Read the partial results from reduction kernel
-			status = clEnqueueReadBuffer(cmdQueue, p0_result_d, CL_TRUE, 0,
+			status = clEnqueueReadBuffer(cmdQueue, p0_result_d, CL_FALSE, 0,
 				NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, 0, NULL, NULL);
 			if (status != CL_SUCCESS) {
 				printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1081,7 +1081,7 @@ int main(int argc, char *argv[])
 
 #ifdef ON_CPU_2_COPY
 					//TODO because of time dependencies above
-					//status = clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//status = clEnqueueReadBuffer(cmdQueue, P_d, CL_FALSE, 0,
 					//	datasize, P_h, 0, NULL, NULL);
 					//if (status != CL_SUCCESS) {
 					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1119,7 +1119,7 @@ int main(int argc, char *argv[])
 						}
 					}	
 
-					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
+					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -1152,7 +1152,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef ON_CPU_2_RELAX					
-					status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_FALSE, 0,
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1178,7 +1178,7 @@ int main(int argc, char *argv[])
 					//if (cycle == 1 && iter == 1)
 					//	print_1darray_to_file(P_h, imax + 2, jmax + 2, "P_h_after.txt");
 
-					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_TRUE, 0, 
+					status = clEnqueueWriteBuffer(cmdQueue, P_d, CL_FALSE, 0, 
 						datasize, P_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueWriteBuffer failed: %s\n", cluErrorString(status));
@@ -1212,7 +1212,7 @@ int main(int argc, char *argv[])
 					}
 					//clWaitForEvents(1, &event);
 
-					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+					//status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_FALSE, 0,
 					//	datasize, P_h, 0, NULL, NULL);
 					//if (status != CL_SUCCESS) {
 					//	printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1271,7 +1271,7 @@ int main(int argc, char *argv[])
 					}
 
 					// Read the final result from reduction kernel
-					status = clEnqueueReadBuffer(cmdQueue, res_d, CL_TRUE, 0,
+					status = clEnqueueReadBuffer(cmdQueue, res_d, CL_FALSE, 0,
 						sizeof(REAL), &res, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1315,7 +1315,7 @@ int main(int argc, char *argv[])
 					//clWaitForEvents(1, &event);
 
 					// Read the partial results from reduction kernel
-					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_TRUE, 0,
+					status = clEnqueueReadBuffer(cmdQueue, res_result_d, CL_FALSE, 0,
 						NUM_WORKGROUPS_1D*sizeof(REAL), res_result_h, 0, NULL, NULL);
 					if (status != CL_SUCCESS) {
 						printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1342,10 +1342,10 @@ int main(int argc, char *argv[])
 		}
 
 		// End of SOR iteration
-
+#ifdef PRINT
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
 			t_end, t+delt, delt, iter, res, ifull, isurf, ibound);  
-
+#endif
 		/* Compute the new velocity field */
 		/*--------------------------------*/
 
@@ -1495,25 +1495,25 @@ int main(int argc, char *argv[])
 	//----------------------------------------------------- 
 
 	// Read the OpenCL output buffer (U_d) to the host output array (U_h)
-	status = clEnqueueReadBuffer(cmdQueue, U_d, CL_TRUE, 0, 
+	status = clEnqueueReadBuffer(cmdQueue, U_d, CL_FALSE, 0, 
 		datasize, U_h, 0, NULL, NULL);
 	// Read the OpenCL output buffer (V_d) to the host output array (V_h)
-	status |= clEnqueueReadBuffer(cmdQueue, V_d, CL_TRUE, 0, 
+	status |= clEnqueueReadBuffer(cmdQueue, V_d, CL_FALSE, 0, 
 		datasize, V_h, 0, NULL, NULL);
 	// Read the OpenCL output buffer (TEMP_new_d) to the host output array (TEMP_h)
-	status |= clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_TRUE, 0, 
+	status |= clEnqueueReadBuffer(cmdQueue, TEMP_new_d, CL_FALSE, 0, 
 		datasize, TEMP_h, 0, NULL, NULL);
 	// Read the OpenCL output buffer (F_d) to the host output array (F_h)
-	status |= clEnqueueReadBuffer(cmdQueue, F_d, CL_TRUE, 0, 
+	status |= clEnqueueReadBuffer(cmdQueue, F_d, CL_FALSE, 0, 
 		datasize, F_h, 0, NULL, NULL);
 	// Read the OpenCL output buffer (G_d) to the host output array (G_h)
-	status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_TRUE, 0, 
+	status |= clEnqueueReadBuffer(cmdQueue, G_d, CL_FALSE, 0, 
 		datasize, G_h, 0, NULL, NULL);
 	// Read the OpenCL output buffer (RHS_d) to the host output array (RHS_h)
-	status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
+	status |= clEnqueueReadBuffer(cmdQueue, RHS_d, CL_FALSE, 0,
 		datasize, RHS_h, 0, NULL, NULL);
 	// Read the OpenCL output buffer (P_d) to the host output array (P_h)
-	status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_TRUE, 0,
+	status |= clEnqueueReadBuffer(cmdQueue, P_d, CL_FALSE, 0,
 		datasize, P_h, 0, NULL, NULL);
 	if (status != CL_SUCCESS) {
 		printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));
@@ -1616,10 +1616,10 @@ int main(int argc, char *argv[])
 			itersor = POISSON(P, RHS, FLAG, imax, jmax, delx, dely,
 			eps, itermax, omg, &res, ifull, p_bound);
 		}
-
+#ifdef PRINT
 		printf("t_end= %1.5g, t= %1.3e, delt= %1.1e, iterations %3d, res: %e, F-cells: %d, S-cells: %d, B-cells: %d\n",
 			t_end, t+delt, delt, itersor, res, ifull, isurf, ibound);  
-
+#endif
 		/* Compute the new velocity field */
 		/*--------------------------------*/
 		ADAP_UV(U, V, F, G, P, FLAG, imax, jmax, delt, delx, dely);
