@@ -292,8 +292,8 @@ bool compare_array(REAL** A1, REAL* A2, int m, int n)
 	REAL sum1, sum2;
 	sum1 = 0;
 	sum2 = 0;
-	for (int r = 0; r < m; r++) {
-		for (int s = 0; s < n; s++) {
+	for (int r = 1; r < m - 1; r++) {
+		for (int s = 1; s < n - 1; s++) {
 			sum1 += A1[r][s];
 			sum2 += A2[r*n+s];
 		}

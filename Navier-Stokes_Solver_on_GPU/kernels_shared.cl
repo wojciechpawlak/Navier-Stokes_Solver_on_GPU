@@ -19,7 +19,7 @@ void COMP_TEMP_kernel(	__global REAL *U,
 						__local REAL *TEMP_l)
 {
 	REAL LAPLT, DUTDX, DVTDY;
-
+	// TODO change delx dely
 	imax = imax + 2;
 	jmax = jmax + 2;
 
@@ -29,31 +29,37 @@ void COMP_TEMP_kernel(	__global REAL *U,
 	int ti = get_global_id(1);
 	int tj = get_global_id(0);
 
+	int local_size_i = get_local_size(1);
 	int local_size_j = get_local_size(0);
 
-	TEMP_l[ti*local_size_j+tj] = TEMP[i*jmax + j];
+	//TEMP_l[ti*local_size_j+tj] = TEMP[i*jmax + j];
+	
 
-	barrier(CLK_LOCAL_MEM_FENCE);
+	//barrier(CLK_LOCAL_MEM_FENCE);
 
-	if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
-		if ( (FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < C_E) ) {
+	//TEMP_new[i*jmax + j] = TEMP_l[ti*local_size_j + tj];
+	TEMP_new[i*jmax + j] = TEMP[i*jmax + j];
 
-			LAPLT = (TEMP_l[(i+1)*local_size_j + j]-2.0*TEMP_l[i*local_size_j + j]+TEMP_l[(i-1)*local_size_j + j])*(1./delx/delx) +
-				(TEMP_l[i*local_size_j + j+1]-2.0*TEMP_l[i*local_size_j + j]+TEMP_l[i*local_size_j + j-1])*(1./dely/dely);
-			DUTDX = ( (U[i*jmax + j]*0.5*(TEMP_l[i*local_size_j + j]+TEMP_l[(i+1)*local_size_j + j]) -
-				U[(i-1)*jmax + j]*0.5*(TEMP_l[(i-1)*local_size_j + j]+TEMP_l[i*local_size_j + j])) +
-				gamma*(fabs(U[i*jmax + j])*0.5*(TEMP_l[i*local_size_j + j]-TEMP_l[(i+1)*local_size_j + j]) -
-				fabs(U[(i-1)*jmax + j])*0.5*(TEMP_l[(i-1)*local_size_j + j]-TEMP_l[i*local_size_j + j]))
-				)/delx;
-			DVTDY = ( (V[i*jmax + j]*0.5*(TEMP_l[i*local_size_j + j]+TEMP_l[i*local_size_j + j+1]) -
-				V[i*jmax + j-1]*0.5*(TEMP_l[i*local_size_j + j-1]+TEMP_l[i*local_size_j + j])) +
-				gamma*(fabs(V[i*jmax + j])*0.5*(TEMP_l[i*local_size_j + j]-TEMP_l[i*local_size_j + j+1]) -
-				fabs(V[i*jmax + j-1])*0.5*(TEMP_l[i*local_size_j + j-1]-TEMP_l[i*local_size_j + j]))
-				)/dely;
-				
-			TEMP_new[i*jmax + j] = TEMP_l[i*jmax + j]+delt*(LAPLT/Re/Pr - DUTDX - DVTDY);
-		}
-	}
+	//if ((i > 0 && i < imax - 1) && (j > 0 && j < jmax - 1)) {
+	//	if ( (FLAG[i*jmax + j] & C_F) && (FLAG[i*jmax + j] < C_E) ) {
+	//		if (ti < local_size_i-1 && tj < local_size_j-1) {
+	//		LAPLT = (TEMP_l[(ti+1)*local_size_j + tj]-2.0*TEMP_l[ti*local_size_j + tj]+TEMP_l[(ti-1)*local_size_j + tj])*(1./delx/delx) +
+	//			(TEMP_l[ti*local_size_j + tj+1]-2.0*TEMP_l[ti*local_size_j + tj]+TEMP_l[ti*local_size_j + tj-1])*(1./dely/dely);
+	//		DUTDX = ( (U[i*jmax + j]*0.5*(TEMP_l[ti*local_size_j + tj]+TEMP_l[(ti+1)*local_size_j + tj]) -
+	//			U[(i-1)*jmax + j]*0.5*(TEMP_l[(ti-1)*local_size_j + tj]+TEMP_l[ti*local_size_j + tj])) +
+	//			gamma*(fabs(U[i*jmax + j])*0.5*(TEMP_l[ti*local_size_j + tj]-TEMP_l[(ti+1)*local_size_j + tj]) -
+	//			fabs(U[(i-1)*jmax + j])*0.5*(TEMP_l[(ti-1)*local_size_j + tj]-TEMP_l[ti*local_size_j + tj]))
+	//			)/delx;
+	//		DVTDY = ( (V[i*jmax + j]*0.5*(TEMP_l[ti*local_size_j + tj]+TEMP_l[ti*local_size_j + tj+1]) -
+	//			V[i*jmax + j-1]*0.5*(TEMP_l[ti*local_size_j + tj-1]+TEMP_l[ti*local_size_j + tj])) +
+	//			gamma*(fabs(V[i*jmax + j])*0.5*(TEMP_l[ti*local_size_j + tj]-TEMP_l[ti*local_size_j + tj+1]) -
+	//			fabs(V[i*jmax + j-1])*0.5*(TEMP_l[ti*local_size_j + tj-1]-TEMP_l[ti*local_size_j + tj]))
+	//			)/dely;
+	//			
+	//		TEMP_new[i*jmax + j] = TEMP_l[ti*local_size_j + tj]+delt*(LAPLT/Re/Pr - DUTDX - DVTDY);
+	//		}
+	//	}
+	//}
 }
 
 __kernel
