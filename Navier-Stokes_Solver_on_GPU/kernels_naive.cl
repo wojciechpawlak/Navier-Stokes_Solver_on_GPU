@@ -1,4 +1,5 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable 
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable 
+#pragma OPENCL EXTENSION cl_nv_compiler_options : enable
 #include "datadef.h"
 
 __kernel

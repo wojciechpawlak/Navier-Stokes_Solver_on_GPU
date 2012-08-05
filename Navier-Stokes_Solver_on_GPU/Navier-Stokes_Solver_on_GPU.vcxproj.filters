@@ -103,6 +103,7 @@
     <None Include="Inputfiles\wave.par">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="kernels.cl" />
+    <None Include="kernels_naive.cl" />
+    <None Include="kernels_shared.cl" />
   </ItemGroup>
 </Project>

@@ -16,6 +16,10 @@
 #include "visual.h"
 #include "surface.h"
 
+//
+#define OPENCL_DEVICE 0
+
+
 // Workgroup sizes
 #define BLOCK_SIZE_2D_1 16
 #define BLOCK_SIZE_2D_2 16
@@ -45,7 +49,20 @@
 //#define TIME_WITHOUT_MEM
 
 // Name of source file with OpenCL kernels
-const char *sourceFile = "kernels.cl";
+const char sourceFile[] = "kernels_shared.cl";
+const char buildOptions[] = "-cl-nv-verbose "
+						//	"-cl-nv-maxrregcount=256 "
+/*							"-cl-single-precision-constant "
+							"-cl-denorms-are-zero "
+							"-cl-strict-aliasing "
+							"-cl-mad-enable "
+							"-cl-no-signed-zeros "
+							"-cl-fast-relaxed-math "*/;
+
+cl_mem_flags memoryRWFlags = CL_MEM_READ_WRITE|CL_MEM_ALLOC_HOST_PTR;
+cl_mem_flags memoryRFlags = CL_MEM_READ_ONLY|CL_MEM_ALLOC_HOST_PTR;
+cl_mem_flags memoryWFlags = CL_MEM_WRITE_ONLY|CL_MEM_ALLOC_HOST_PTR;
+
 
 int main(int argc, char *argv[])
 {
@@ -208,7 +225,7 @@ int main(int argc, char *argv[])
 	cl_device_id *devices = NULL;
 
 	// Retrive the number of devices present
-	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, //TODO CL_DEVICE_TYPE_ALL for all types
+	status = clGetDeviceIDs(platforms[OPENCL_DEVICE], CL_DEVICE_TYPE_ALL, //TODO CL_DEVICE_TYPE_ALL for all types
 		0, NULL, &numDevices);						
 	if (status != CL_SUCCESS) {
 		printf("clGetDeviceIDs failed: %s\n", cluErrorString(status));
@@ -229,7 +246,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Fill in devices
-	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, // CL_DEVICE_TYPE_ALL
+	status = clGetDeviceIDs(platforms[OPENCL_DEVICE], CL_DEVICE_TYPE_ALL, // CL_DEVICE_TYPE_ALL
 		numDevices,	devices, NULL);
 	if(status != CL_SUCCESS) {
 		printf("clGetDeviceIDs failed: %s\n", cluErrorString(status));
@@ -385,7 +402,7 @@ int main(int argc, char *argv[])
 #endif
 
 	// Create a buffer object (U_d)
-	U_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+	U_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, U_h, &status);
 	if (status != CL_SUCCESS || U_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -393,7 +410,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (V_d)
-	V_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+	V_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, V_h, &status);
 	if (status != CL_SUCCESS || V_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -401,7 +418,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (FLAG_d)
-	FLAG_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
+	FLAG_d = clCreateBuffer(context, memoryRFlags,
 		datasize_int, FLAG_h, &status);
 	if (status != CL_SUCCESS || FLAG_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -409,7 +426,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (TEMP_d)
-	TEMP_d = clCreateBuffer(context, CL_MEM_READ_ONLY,
+	TEMP_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, TEMP_h, &status);
 	if (status != CL_SUCCESS || TEMP_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -417,7 +434,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (TEMP_new_d)
-	TEMP_new_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+	TEMP_new_d = clCreateBuffer(context, memoryWFlags,
 		datasize, NULL, &status);
 	if (status != CL_SUCCESS || TEMP_new_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -425,7 +442,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (F_d)
-	F_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+	F_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, F_h, &status);
 	if (status != CL_SUCCESS || F_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -433,7 +450,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (G_d)
-	G_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+	G_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, G_h, &status);
 	if (status != CL_SUCCESS || G_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -441,7 +458,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (RHS_d)
-	RHS_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+	RHS_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, RHS_h, &status);
 	if (status != CL_SUCCESS || RHS_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -449,7 +466,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create a buffer object (P_d)
-	P_d = clCreateBuffer(context, CL_MEM_READ_WRITE,
+	P_d = clCreateBuffer(context, memoryRWFlags,
 		datasize, P_h, &status);
 	if (status != CL_SUCCESS || P_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -458,7 +475,7 @@ int main(int argc, char *argv[])
 
 	// Create a buffer object for vector of partial results
 	// for initial pressure value computation
-	p0_result_d = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+	p0_result_d = clCreateBuffer(context, memoryWFlags,
 		NUM_WORKGROUPS_1D*sizeof(REAL), p0_result_h, &status);
 	if (status != CL_SUCCESS || p0_result_d == NULL) {
 		printf("clCreateBuffer failed: %s\n", cluErrorString(status));
@@ -508,7 +525,41 @@ int main(int argc, char *argv[])
 	}
 
 	// Build (compile & link) the program for the devices
-	status = clBuildProgram(program, numDevices, devices, NULL, NULL, NULL);
+	status = clBuildProgram(program, numDevices, devices, buildOptions, NULL, NULL);
+
+	char *buildOptions;
+	size_t buildOptionsSize;
+	clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_OPTIONS,
+		0, NULL, &buildOptionsSize);
+	buildOptions = (char*)malloc(buildOptionsSize);
+	if (buildOptions == NULL) {
+		perror("malloc");
+		exit(-1);
+	}
+
+	clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_OPTIONS,
+		buildOptionsSize, buildOptions, NULL);
+	buildOptions[buildOptionsSize-1] = '\0';
+
+	printf("Device %u Build Options:\n%s\n", 0, buildOptions);   
+	free(buildOptions);
+
+	char *buildLog;
+	size_t buildLogSize;
+	clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG,
+		0, NULL, &buildLogSize);
+	buildLog = (char*)malloc(buildLogSize);
+	if (buildLog == NULL) {
+		perror("malloc");
+		exit(-1);
+	}
+
+	clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG,
+		buildLogSize, buildLog, NULL);
+	buildLog[buildLogSize-1] = '\0';
+
+	printf("Device %u Build Log:\n%s\n", 0, buildLog);   
+	free(buildLog);
 
 	// Print build errors if any
 	if (status != CL_SUCCESS) {
@@ -792,6 +843,7 @@ int main(int argc, char *argv[])
 		status |= clSetKernelArg(TEMP_kernel, 10, sizeof(REAL), &gamma);
 		status |= clSetKernelArg(TEMP_kernel, 11, sizeof(REAL), &Re);
 		status |= clSetKernelArg(TEMP_kernel, 12, sizeof(REAL), &Pr);
+		status |= clSetKernelArg(TEMP_kernel, 13, sizeof(REAL)**localWorkSize[0]*localWorkSize[1], NULL);
 		if (status != CL_SUCCESS) {
 			printf("clSetKernelArg failed: %s\n", cluErrorString(status));
 			exit(-1);
@@ -868,7 +920,7 @@ int main(int argc, char *argv[])
 		//clWaitForEvents(1, &event);
 
 		//TODO because of CPU versions of Relaxation and Comp Res kernels
-		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_FALSE, 0,
+		status = clEnqueueReadBuffer(cmdQueue, RHS_d, CL_TRUE, 0,
 			datasize, RHS_h, 0, NULL, NULL);
 		if (status != CL_SUCCESS) {
 			printf("clEnqueueReadBuffer failed: %s\n", cluErrorString(status));

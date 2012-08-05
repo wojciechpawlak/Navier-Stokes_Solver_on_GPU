@@ -41,7 +41,6 @@
     <ClInclude Include="visual.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="kernels.cl" />
     <None Include="Inputfiles\backstep.par" />
     <None Include="Inputfiles\convect.par" />
     <None Include="Inputfiles\dam.par" />
@@ -52,6 +51,8 @@
     <None Include="Inputfiles\obstacle.par" />
     <None Include="Inputfiles\rayleigh.par" />
     <None Include="Inputfiles\wave.par" />
+    <None Include="kernels_naive.cl" />
+    <None Include="kernels_shared.cl" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DC45E163-7367-4F87-B119-3A50546B8E32}</ProjectGuid>
