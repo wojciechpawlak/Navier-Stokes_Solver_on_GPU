@@ -394,3 +394,62 @@ void COMP_delt(REAL *delt, REAL t, int imax, int jmax, REAL delx, REAL dely,
 			*write += 8;
 		}
 }
+
+void COMP_delt_1d(REAL *delt, REAL t, int imax, int jmax, REAL delx, REAL dely,
+	REAL *U, REAL *V, REAL Re, REAL Pr, REAL tau, int *write,
+	REAL del_trace, REAL del_inj, REAL del_streak, REAL del_vec){
+		int i, j;
+		REAL umax, vmax, deltu, deltv, deltRePr; 
+		REAL t_trace, t_inj, t_streak, t_vec, t_neu; 
+
+		int iimax = imax + 2;
+		int jjmax = jmax + 2;
+
+		/* delt satisfying CFL conditions */
+		/*--------------------------------*/
+		if(tau >= 1.0e-10){ /* else no time stepsize control */
+			umax = 1.0e-10; vmax = 1.0e-10; 
+			for(i=0; i<=imax+1; i++) for(j=1; j<=jmax+1; j++)
+				if(fabs(U[i*jjmax + j]) > umax)
+					umax = fabs(U[i*jjmax + j]);
+
+			for(i=1; i<=imax+1; i++) for(j=0; j<=jmax+1; j++)
+				if(fabs(V[i*jjmax + j]) > vmax)
+					vmax = fabs(V[i*jjmax + j]);
+
+			deltu = delx/umax; deltv = dely/vmax; 
+			if(Pr < 1)	deltRePr = 1/(1/(delx*delx)+1/(dely*dely))*Re*Pr/2.;
+			else	deltRePr = 1/(1/(delx*delx)+1/(dely*dely))*Re/2.;
+
+			if(deltu<deltv) 
+				if(deltu<deltRePr) *delt = deltu;
+				else 	       *delt = deltRePr;
+			else
+				if(deltv<deltRePr) *delt = deltv;
+				else 	       *delt = deltRePr;
+				*delt = tau*(*delt); /* multiply by safety factor */
+		}
+
+		/* look if some data has to be written to a file in the next time step */ 
+		/*---------------------------------------------------------------------*/
+		*write = 0;
+		t_neu = t + (*delt);
+		t_trace = t_inj = t_streak = t_vec = t_neu + 1.0e+10;
+
+		if( (int)(t/del_trace)!=(int)(t_neu/del_trace) ){
+			t_trace = (int)(t_neu/del_trace) * del_trace;
+			*write += 1;
+		}
+		if( (int)(t/del_inj)!=(int)(t_neu/del_inj) ){
+			t_inj = (int)(t_neu/del_inj) * del_inj;
+			*write += 2;
+		}
+		if( (int)(t/del_streak)!=(int)(t_neu/del_streak) ){
+			t_streak = (int)(t_neu/del_streak) * del_streak;
+			*write += 4;
+		}
+		if( (int)(t/del_vec)!=(int)(t_neu/del_vec) ){
+			t_vec = (int)(t_neu/del_vec) * del_vec;
+			*write += 8;
+		}
+}

@@ -24,4 +24,8 @@ void COMP_delt(REAL *delt, REAL T, int imax, int jmax, REAL delx, REAL dely,
                REAL **U, REAL **V, REAL Re, REAL Pr, REAL tau, int *write,
                REAL del_trace, REAL del_inj, REAL del_streak, REAL del_vec);
 
+void COMP_delt_1d(REAL *delt, REAL t, int imax, int jmax, REAL delx, REAL dely,
+				REAL *U, REAL *V, REAL Re, REAL Pr, REAL tau, int *write,
+				REAL del_trace, REAL del_inj, REAL del_streak, REAL del_vec);
+
 #endif /* UVP_H_ */
